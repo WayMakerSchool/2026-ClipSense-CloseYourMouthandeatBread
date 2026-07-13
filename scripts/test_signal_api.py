@@ -91,6 +91,39 @@ check("None이어도 raw 보존", r.raw == "protected-Movement-Allowed")
 r = parse_reading([rec(trsmUtcTime="not-a-number")], "ne", now_ms=NOW)
 check("trsmUtcTime 파싱불가 → UNKNOWN", r.color == UNKNOWN, f"실제 {r.color}")
 
+# --- Task 3: fetch_reading 오류 경로 (네트워크 없이 opener 주입) ---
+from signal_api import fetch_reading
+
+def raising_opener(url, timeout):
+    raise OSError("network down")
+
+r = fetch_reading("1537", "ne", "dummy-key", now_ms=NOW, opener=raising_opener)
+check("네트워크 오류 → UNKNOWN", r.color == UNKNOWN and r.source == SRC_API,
+      f"실제 {r.color}")
+
+class FakeResp:
+    def __init__(self, body): self._body = body
+    def read(self): return self._body.encode("utf-8")
+    def __enter__(self): return self
+    def __exit__(self, *a): return False
+
+def bad_json_opener(url, timeout):
+    return FakeResp("<html>error</html>")
+
+r = fetch_reading("1537", "ne", "dummy-key", now_ms=NOW, opener=bad_json_opener)
+check("JSON 파싱 실패 → UNKNOWN", r.color == UNKNOWN, f"실제 {r.color}")
+
+import json as _json
+def ok_opener(url, timeout):
+    return FakeResp(_json.dumps([{
+        "itstId": "1537", "trsmUtcTime": NOW,
+        "nePdsgStatNm": "protected-Movement-Allowed", "nePdsgRmdrCs": 241,
+    }]))
+
+r = fetch_reading("1537", "ne", "dummy-key", now_ms=NOW, opener=ok_opener)
+check("정상 응답 → 파싱 위임(GREEN)", r.color == GREEN and r.remain_sec == 24.1,
+      f"실제 {r.color}/{r.remain_sec}")
+
 print("=" * 50)
 if FAILURES:
     print(f"FAIL {len(FAILURES)}건: {FAILURES}")

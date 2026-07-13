@@ -10,6 +10,10 @@
 - 전송시각: trsmUtcTime (epoch ms)
 """
 
+import json
+import urllib.parse
+import urllib.request
+
 from signals import (SignalReading, GREEN, RED, CLEARANCE, UNKNOWN, SRC_API)
 
 # API 상태 enum(SAE J2735) → 우리 색. 화이트리스트: 여기 없는 값은 UNKNOWN.
@@ -63,3 +67,38 @@ def parse_reading(records: list[dict], direction: str, now_ms: int,
     color = STATUS_MAP.get(stat, UNKNOWN)
     remain = _to_remain_sec(rmdr) if color != UNKNOWN else None
     return SignalReading(color, remain, SRC_API, fresh_ms=max(0, fresh_ms), raw=raw)
+
+
+DEFAULT_BASE_URL = ("https://t-data.seoul.go.kr/apig/apiman-gateway/tapi/"
+                    "v2xSignalPhaseTimingFusionInformation/1.0")
+
+
+def _default_opener(url: str, timeout: float):
+    req = urllib.request.Request(url, headers={"User-Agent": "clipsense/1.0"})
+    return urllib.request.urlopen(req, timeout=timeout)
+
+
+def fetch_reading(itst_id: str, direction: str, api_key: str, *,
+                  now_ms: int, base_url: str = DEFAULT_BASE_URL,
+                  timeout: float = 5.0, opener=None) -> SignalReading:
+    """서울 T-Data를 호출해 해당 교차로·방위 보행신호를 SignalReading으로.
+
+    네트워크·HTTP·JSON 오류는 전부 삼켜 UNKNOWN을 반환한다 (앱을 죽이지 않음).
+    opener(url, timeout)를 주입하면 네트워크 없이 테스트 가능.
+    api_key는 호출자가 환경변수/설정에서 읽어 넘긴다 (여기서 하드코딩 안 함).
+    """
+    opener = opener or _default_opener
+    params = urllib.parse.urlencode({
+        "apiKey": api_key, "type": "json", "itstId": itst_id, "numOfRows": "10",
+    })
+    url = f"{base_url}?{params}"
+    try:
+        with opener(url, timeout) as resp:
+            body = resp.read()
+        records = json.loads(body)
+        if not isinstance(records, list):
+            return SignalReading(UNKNOWN, None, SRC_API, fresh_ms=0)
+        return parse_reading(records, direction, now_ms=now_ms)
+    except Exception:
+        # 네트워크/HTTP/JSON/기타 — 정직하게 UNKNOWN (조용히 실패)
+        return SignalReading(UNKNOWN, None, SRC_API, fresh_ms=0)
