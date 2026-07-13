@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# 대용량 미디어 (참조/테스트 영상 — 저장소에 안 넣음)
+*.mp4
+*.mov
+*.avi
+
+# 생성물 (음성/합성 테스트 영상은 스크립트로 재생성)
+assets/voice/
+data/*.mp4
+
+# API 키·비밀 (절대 커밋 금지)
+.env
+*.key
+secrets.json
+config.local.json
+
+# OS/에디터
+.DS_Store
+*.swp
+
+# 임시/작업 파일
+scratchpad/
+*.tmp
+
+# 진행 원장은 스크래치(추적 안 함) — .superpowers는 로컬 상태
+.superpowers/

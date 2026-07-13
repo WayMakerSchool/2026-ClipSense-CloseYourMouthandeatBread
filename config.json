@@ -1,0 +1,40 @@
+{
+  "roi": null,
+  "digit_roi": null,
+  "digits": {
+    "red_hsv": [
+      { "lower": [0, 100, 80], "upper": [10, 255, 255] },
+      { "lower": [170, 100, 80], "upper": [180, 255, 255] }
+    ],
+    "seg_on_ratio": 0.5,
+    "seg_off_ratio": 0.2,
+    "min_cell_fill": 0.08,
+    "max_cell_fill": 0.65,
+    "max_cell_aspect": 0.82,
+    "stable_window": 5,
+    "stable_votes": 3
+  },
+  "hsv": {
+    "red": [
+      { "lower": [0, 55, 45], "upper": [12, 255, 255] },
+      { "lower": [165, 55, 45], "upper": [180, 255, 255] }
+    ],
+    "green": [
+      { "lower": [35, 45, 45], "upper": [100, 255, 255] }
+    ]
+  },
+  "min_area_ratio": 0.005,
+  "max_area_ratio": 0.6,
+  "min_circularity": 0.12,
+  "min_brightness": 35,
+  "brightness_jump": 60,
+  "brightness_ema_alpha": 0.05,
+  "valid_exit_factor": 0.6,
+  "morph_kernel": 5,
+  "debounce_frames": 8,
+  "blink_window_seconds": 2.0,
+  "blink_min_toggles": 3,
+  "blink_min_segment_seconds": 0.15,
+  "unknown_after_seconds": 1.5,
+  "voice_cooldown_seconds": 3.0
+}

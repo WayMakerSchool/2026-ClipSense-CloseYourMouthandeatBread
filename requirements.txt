@@ -1,0 +1,8 @@
+# 런타임 (부스에서 필요)
+opencv-python==5.0.0.93
+numpy==2.5.1
+# 음성 재생: macOS는 내장 afplay 사용(설치 불필요), pygame은 비-macOS 폴백
+pygame==2.6.1
+
+# 개발 시에만 (음성 파일 생성, 인터넷 필요)
+edge-tts==7.2.8
