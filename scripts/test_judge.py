@@ -75,6 +75,20 @@ check("둘 다 None → 확인불가",
 check("단일 소스 초록·잔여없음 → WAIT",
       decide(None, vis(GREEN, None), allow_single_source=True) == WAIT)
 
+# --- 안전 정책(사용자 결정): 기본은 엄격 — 카메라 UNKNOWN이면 API 초록이어도 WAIT ---
+# (allow_single_source 기본값 False. 서울 밖 단독 운용은 호출자가 명시적으로 True를 넘김)
+check("기본: 비전 UNKNOWN이면 API 초록이어도 WAIT",
+      decide(api(GREEN, 30), vis(UNKNOWN, None)) == WAIT)
+check("기본: API UNKNOWN이면 비전 초록이어도 WAIT",
+      decide(api(UNKNOWN, None), vis(GREEN, 30)) == WAIT)
+check("기본: 비전 stale이면 API 초록이어도 WAIT",
+      decide(api(GREEN, 30), vis(GREEN, 30, fresh=5000)) == WAIT)
+check("기본: API None이면 비전 초록이어도 WAIT",
+      decide(None, vis(GREEN, 30)) == WAIT)
+# 명시적 opt-in은 여전히 단일 소스 WALK 허용 (서울 밖 대비)
+check("opt-in: 비전 단독 초록 → WALK (allow_single_source=True)",
+      decide(None, vis(GREEN, 30), allow_single_source=True) == WALK)
+
 print("=" * 50)
 if FAILURES:
     print(f"FAIL {len(FAILURES)}건: {FAILURES}")

@@ -4,7 +4,11 @@
 - WALK는 두 소스가 모두 GREEN + 잔여시간 충분 + 둘 다 fresh일 때만.
 - 하나라도 불일치/부족/stale → WAIT.
 - 두 소스 모두 UNKNOWN 또는 입력 없음 → UNKNOWN_DECISION.
-- 단일 소스만 가용할 때는 allow_single_source로 정책 제어(서울 밖 카메라 단독).
+- 기본(allow_single_source=False)은 엄격: 두 소스 모두 GREEN일 때만
+  WALK. 한쪽이 UNKNOWN/stale/없음이라 단일 소스만 가용하면 무조건 WAIT
+  — 카메라가 조용히 실패해도 API 단독으로 WALK가 나가지 않는다.
+- 서울 밖 카메라 단독 운용처럼 단일 소스 WALK가 불가피한 배치는,
+  호출자가 명시적으로 allow_single_source=True를 넘겨 opt-in한다.
 """
 
 from signals import SignalReading, GREEN, UNKNOWN
@@ -30,8 +34,20 @@ def _remain_ok(readings: list[SignalReading], need_sec: float) -> bool:
 
 def decide(api: SignalReading | None, vision: SignalReading | None, *,
            need_sec: float = 7.0, stale_ms: int = 2000,
-           allow_single_source: bool = True) -> str:
-    """최종 보행 결정. 기본은 AND(둘 다 초록)일 때만 WALK."""
+           allow_single_source: bool = False) -> str:
+    """최종 보행 결정.
+
+    기본은 엄격 — 두 소스(API + 비전) 모두 GREEN + 잔여시간 충분 + 둘 다
+    fresh일 때만 WALK. 한쪽이 UNKNOWN이거나 stale이거나 아예 입력이
+    없어서 단일 소스만 가용한 경우, 기본값(allow_single_source=False)에서는
+    무조건 WAIT — API만 초록이라고 카메라가 조용히 실패한 채로 WALK를
+    내보내지 않는다.
+
+    서울 밖처럼 카메라(비전) 단독 운용이 불가피한 배치에서만, 호출자가
+    명시적으로 allow_single_source=True를 넘겨 단일 소스 WALK를 opt-in
+    한다. 두 소스 모두 UNKNOWN이거나 입력 자체가 없으면 항상
+    UNKNOWN_DECISION.
+    """
     api_ok = _usable(api, stale_ms)
     vis_ok = _usable(vision, stale_ms)
 
