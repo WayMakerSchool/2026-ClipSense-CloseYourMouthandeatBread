@@ -4,6 +4,8 @@
 /// GREEN_BLINK(초록 점멸)는 clearance로 매핑한다. 실제 카메라 검출기(Dart)는
 /// 아직 없으므로 visionStub()이 그 자리를 대신해 항상 unknown을 반환한다.
 
+library;
+
 import 'signal_reading.dart';
 
 const Map<String, SignalColor> _stateMap = {

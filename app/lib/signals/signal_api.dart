@@ -3,6 +3,8 @@
 /// 책임: (교차로 레코드, 방위) → SignalReading(source: api). 판단하지 않는다.
 /// 정직성: 모르는 상태값·stale·미래시각·null·오류는 전부 unknown (green 추측 금지).
 
+library;
+
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;

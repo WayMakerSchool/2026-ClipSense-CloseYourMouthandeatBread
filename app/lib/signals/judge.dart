@@ -9,6 +9,8 @@
 ///   — 카메라가 조용히 실패해도 API 단독으로 walk가 나가지 않는다.
 /// - 서울 밖 카메라 단독 운용은 호출자가 allowSingleSource=true로 opt-in.
 
+library;
+
 import 'signal_reading.dart';
 
 enum Decision { walk, wait, unknown }

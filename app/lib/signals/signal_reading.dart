@@ -3,6 +3,8 @@
 /// signal_api / vision_adapter / judge 세 모듈이 이 표현으로만 대화한다.
 /// 색은 4-값 enum이며, unknown은 "모른다"는 1급 상태다 (추측 금지).
 
+library;
+
 /// 신호 색 (4-값 고정).
 enum SignalColor {
   green, // 건널 수 있음 (보행 초록)
