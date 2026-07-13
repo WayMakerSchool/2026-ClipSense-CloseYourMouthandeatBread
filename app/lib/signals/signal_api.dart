@@ -3,6 +3,10 @@
 /// 책임: (교차로 레코드, 방위) → SignalReading(source: api). 판단하지 않는다.
 /// 정직성: 모르는 상태값·stale·미래시각·null·오류는 전부 unknown (green 추측 금지).
 
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+
 import 'signal_reading.dart';
 
 /// API 상태 enum(SAE J2735) → 색. 화이트리스트: 여기 없는 값은 unknown.
@@ -74,4 +78,41 @@ SignalReading parseReading(List records, String direction, int nowMs,
   final remain = color != SignalColor.unknown ? _toRemainSec(rmdr) : null;
   return SignalReading(color, remain, SignalSource.api,
       freshMs: freshMs < 0 ? 0 : freshMs, raw: raw);
+}
+
+const String defaultBaseUrl =
+    'https://t-data.seoul.go.kr/apig/apiman-gateway/tapi/'
+    'v2xSignalPhaseTimingFusionInformation/1.0';
+
+/// 서울 T-Data를 호출해 해당 교차로·방위 보행신호를 SignalReading으로.
+///
+/// 네트워크·HTTP·JSON 오류는 전부 삼켜 unknown 반환(앱을 죽이지 않음).
+/// client를 주입하면 네트워크 없이 테스트 가능. apiKey는 호출자가 주입
+/// (여기서 하드코딩 안 함).
+Future<SignalReading> fetchReading(
+    String itstId, String direction, String apiKey,
+    {required int nowMs,
+    http.Client? client,
+    String baseUrl = defaultBaseUrl,
+    Duration timeout = const Duration(seconds: 5)}) async {
+  final c = client ?? http.Client();
+  try {
+    final uri = Uri.parse(baseUrl).replace(queryParameters: {
+      'apiKey': apiKey,
+      'type': 'json',
+      'itstId': itstId,
+      'numOfRows': '10',
+    });
+    final resp = await c.get(uri).timeout(timeout);
+    final decoded = jsonDecode(resp.body);
+    if (decoded is! List) {
+      return const SignalReading(SignalColor.unknown, null, SignalSource.api);
+    }
+    return parseReading(decoded, direction, nowMs, itstId: itstId);
+  } catch (_) {
+    // 네트워크/HTTP/JSON/기타 — 정직하게 unknown (조용히 실패)
+    return const SignalReading(SignalColor.unknown, null, SignalSource.api);
+  } finally {
+    if (client == null) c.close();
+  }
 }

@@ -1,4 +1,7 @@
+import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:clip_sense/signals/signal_reading.dart';
 import 'package:clip_sense/signals/signal_api.dart';
 
@@ -157,5 +160,46 @@ void main() {
   test('stale_ms 초과는 unknown', () {
     final r = parseReading([rec()], 'ne', now + 2001, staleMs: 2000);
     expect(r.color, SignalColor.unknown);
+  });
+
+  group('fetchReading (http.Client 주입)', () {
+    test('네트워크 오류 → unknown', () async {
+      final client = MockClient((req) async => throw Exception('network down'));
+      final r = await fetchReading('1537', 'ne', 'dummy-key',
+          nowMs: now, client: client);
+      expect(r.color, SignalColor.unknown);
+      expect(r.source, SignalSource.api);
+    });
+
+    test('JSON 파싱 실패 → unknown', () async {
+      final client = MockClient((req) async => http.Response('<html>err</html>', 200));
+      final r = await fetchReading('1537', 'ne', 'dummy-key',
+          nowMs: now, client: client);
+      expect(r.color, SignalColor.unknown);
+    });
+
+    test('list 아닌 응답(dict) → unknown', () async {
+      final client = MockClient(
+          (req) async => http.Response(jsonEncode({'error': 'x'}), 200));
+      final r = await fetchReading('1537', 'ne', 'dummy-key',
+          nowMs: now, client: client);
+      expect(r.color, SignalColor.unknown);
+    });
+
+    test('정상 응답 → 파싱 위임(green)', () async {
+      final body = jsonEncode([
+        {
+          'itstId': '1537',
+          'trsmUtcTime': now,
+          'nePdsgStatNm': 'protected-Movement-Allowed',
+          'nePdsgRmdrCs': 241,
+        }
+      ]);
+      final client = MockClient((req) async => http.Response(body, 200));
+      final r = await fetchReading('1537', 'ne', 'dummy-key',
+          nowMs: now, client: client);
+      expect(r.color, SignalColor.green);
+      expect(r.remainSec, 24.1);
+    });
   });
 }
