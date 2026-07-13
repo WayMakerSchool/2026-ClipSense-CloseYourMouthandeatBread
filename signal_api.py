@@ -45,19 +45,21 @@ def parse_reading(records: list[dict], direction: str, now_ms: int,
     stat = rec.get(f"{direction}PdsgStatNm")
     rmdr = rec.get(f"{direction}PdsgRmdrCs")
 
-    # 신선도
+    # 신선도 — 전송시각이 없거나 파싱 불가면 신선도를 알 수 없다.
+    # 정직성 원칙: 모르면 UNKNOWN (신선하다고 거짓 가정하지 않는다). raw는 보존.
     trsm = rec.get("trsmUtcTime")
+    raw = str(stat) if stat is not None else None
+    if trsm is None:
+        return SignalReading(UNKNOWN, None, SRC_API, fresh_ms=0, raw=raw)
     try:
-        fresh_ms = int(now_ms - float(trsm)) if trsm is not None else 0
+        fresh_ms = int(now_ms - float(trsm))
     except (TypeError, ValueError):
-        fresh_ms = 0
+        return SignalReading(UNKNOWN, None, SRC_API, fresh_ms=0, raw=raw)
 
-    # stale → UNKNOWN (원문은 보존해 디버깅 가능)
+    # stale → UNKNOWN (원문 보존)
     if fresh_ms > stale_ms:
-        return SignalReading(UNKNOWN, None, SRC_API, fresh_ms=fresh_ms,
-                             raw=str(stat) if stat is not None else None)
+        return SignalReading(UNKNOWN, None, SRC_API, fresh_ms=fresh_ms, raw=raw)
 
     color = STATUS_MAP.get(stat, UNKNOWN)
     remain = _to_remain_sec(rmdr) if color != UNKNOWN else None
-    raw = str(stat) if stat is not None else None
     return SignalReading(color, remain, SRC_API, fresh_ms=max(0, fresh_ms), raw=raw)

@@ -83,6 +83,14 @@ check("STATUS_MAP 알려진 값만",
                           "stop-And-Remain"},
       f"실제 {sorted(STATUS_MAP)}")
 
+# --- 리뷰 수정: 신선도 불명이면 UNKNOWN (신선하다고 거짓 가정 금지) ---
+r = parse_reading([rec(trsmUtcTime=None)], "ne", now_ms=NOW)
+check("trsmUtcTime None → UNKNOWN", r.color == UNKNOWN, f"실제 {r.color}")
+check("None이어도 raw 보존", r.raw == "protected-Movement-Allowed")
+
+r = parse_reading([rec(trsmUtcTime="not-a-number")], "ne", now_ms=NOW)
+check("trsmUtcTime 파싱불가 → UNKNOWN", r.color == UNKNOWN, f"실제 {r.color}")
+
 print("=" * 50)
 if FAILURES:
     print(f"FAIL {len(FAILURES)}건: {FAILURES}")
