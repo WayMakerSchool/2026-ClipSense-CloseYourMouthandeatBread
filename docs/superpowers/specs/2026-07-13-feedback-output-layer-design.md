@@ -27,6 +27,14 @@ Dart 데이터 계층(app/lib/signals/)이 완성돼 `judge.decide(...)`가 `Dec
 안내하면 "대기... 대기..."가 반복된다. Decision이 **바뀔 때만** 음성·햅틱을 내고,
 같은 상태 지속 중에는 조용히 한다(Python voice.py의 전환 감지 철학과 동일).
 
+**결정 5 — 잔여시간은 전환 시점 스냅샷 1회, 카운트다운 없음(이번 조각).** 결정 1의
+"동적 잔여시간"과 결정 3의 "전환 시에만"이 walk에서 만나는 지점을 명확히 한다:
+walk로 바뀌는 순간 "…N초 남았습니다"를 **한 번** 말하고, 그 뒤 같은 walk가 지속되는
+동안은 조용하다. remainSec은 전환 시점의 스냅샷일 뿐이며, "10초… 5초…" 같은 주기적
+카운트다운 재안내는 이번 조각의 범위가 아니다. (주기 재안내가 필요하면 후속 조각에서
+FeedbackController에 타이머를 더하되, 그건 judge 루프·타이밍 정책과 얽히므로 별도로
+설계한다.)
+
 **결정 4 — 백엔드를 인터페이스 뒤로 격리.** 실제 TTS·진동은 폰 하드웨어·OS에
 의존해 단위 테스트로 목킹할 수 없다. SpeechOutput/HapticOutput을 abstract로 두고
 FeedbackController가 그 인터페이스에만 의존하게 해서, 전환 감지 로직을 Fake 백엔드로
@@ -71,12 +79,21 @@ judge.decide() → Decision ─▶ FeedbackController.onDecision(d, remainSec)
 - `class FeedbackController`:
   - 생성자 `FeedbackController(this._speech, this._haptic)` — SpeechOutput·HapticOutput 주입.
   - 필드 `Decision? _last` — 직전에 안내한 Decision(초기 null).
-  - `void onDecision(Decision d, {double? remainSec})`:
+  - `Future<void> onDecision(Decision d, {double? remainSec})` — **반드시 `Future<void>`
+    (void 아님).** 백엔드는 Future를 반환하는 async 작업이므로, void에서 await 없이
+    호출하면 비동기 실패를 동기 try/catch가 못 잡아 멀티채널 보장이 깨지고
+    unhandled exception이 된다.
+    - `Decision`은 enum(`enum Decision { walk, wait, unknown }`)이라 `d == _last`는
+      카테고리 비교다. remainSec은 별도 인자라 값이 달라도 전환으로 오인되지 않는다.
     - `d == _last`이면 아무것도 안 함(같은 상태 지속 → 조용).
-    - 다르면: `_last = d` 갱신 후 `_speech.speak(문구)`와 `_haptic.play(d)`를
-      **각각 독립적으로** 호출한다 — speech 호출이 실패(throw)해도 haptic 호출은
-      반드시 시도한다(멀티채널 독립, §5). 즉 컨트롤러는 각 백엔드 호출을 개별
-      try/catch로 감싸 한쪽 실패가 다른 쪽을 막지 않게 한다.
+    - 다르면 `_last = d` 갱신 후, 두 백엔드를 **각각 개별 await + try/catch**로 호출:
+      ```dart
+      try { await _speech.speak(speechText(d, remainSec: remainSec)); }
+      catch (_) { /* 삼킴 — 음성 실패가 진동을 막지 않음 */ }
+      try { await _haptic.play(d); }
+      catch (_) { /* 삼킴 */ }
+      ```
+      speech가 async로 실패해도 haptic await는 반드시 실행된다(멀티채널 독립, §5).
     - 첫 호출(`_last == null`)은 항상 안내.
   - **판단하지 않음. 출력 자체를 하지 않음(백엔드에 위임). 조율만.**
 
@@ -87,8 +104,11 @@ judge.decide() → Decision ─▶ FeedbackController.onDecision(d, remainSec)
   |---|---|
   | walk | "지금 건너셔도 됩니다" (remainSec 있으면 ", N초 남았습니다" 덧붙임) |
   | wait | "기다리세요" |
-  | unknown | "신호를 확인할 수 없습니다" |
+  | unknown | "신호를 확인할 수 없습니다. 대기하세요" |
   (문구 생성은 순수 함수라 컨트롤러 테스트에서 검증. remainSec는 반올림한 정수 초.)
+  unknown 문구는 상태 서술에 그치지 않고 **행동 지시(대기)**를 포함한다 — Fail-Safe
+  원칙상 불확실하면 무조건 대기여야 하는데, 사용자에게 대기하라고 말하지 않으면
+  위험하다. wait와 unknown 둘 다 "행동=대기"로 안전하게 수렴한다.
 - `class FlutterTtsSpeech implements SpeechOutput`:
   - flutter_tts 인스턴스. 한국어 로케일 `ko-KR` 설정.
   - `speak(text)`: 새 안내가 오면 이전 것을 끊고(`stop()`) 재생(`speak()`).
@@ -118,13 +138,17 @@ judge.decide() → Decision ─▶ FeedbackController.onDecision(d, remainSec)
 ## 6. 테스트 전략
 
 - **`feedback_controller_test.dart`** — Fake SpeechOutput/HapticOutput(호출 기록만)
-  주입. 검증:
+  주입. 컨트롤러 `onDecision`이 `Future<void>`이므로 테스트도 `await onDecision(...)`.
+  검증:
   1. 첫 Decision은 안내됨(speak·play 각 1회).
   2. 같은 Decision 반복 시 무음(추가 호출 0회).
   3. 전환(wait→walk 등) 시 안내됨.
   4. walk에 remainSec 주면 문구에 "N초 남았습니다" 포함.
-  5. 각 Decision이 올바른 문구를 만든다(speechText 순수 함수 검증).
-  6. speech가 실패(Fake가 throw)해도 haptic은 호출된다(멀티채널 독립).
+  5. 각 Decision이 올바른 문구를 만든다(speechText 순수 함수 검증. unknown 문구에
+     "대기" 포함).
+  6. speech가 **async로 실패**(Fake의 speak가 `Future.error`/async throw)해도 haptic은
+     호출된다(멀티채널 독립). **Fake는 반드시 async로 throw** — 실기기 TTS/진동 실패는
+     Future 에러 완료 형태이므로, Fake가 동기로 throw하면 테스트가 거짓 통과한다.
 - **실제 FlutterTtsSpeech/VibrationHaptic은 단위 테스트하지 않음** — 폰 하드웨어·OS
   의존이라 목킹 불가. 인터페이스 뒤로 격리하고 실기기 확인은 수동(후속 앱 통합 조각).
 - 실행: `cd app && flutter test test/feedback_controller_test.dart`. analyze 클린 유지.
@@ -142,9 +166,10 @@ pubspec.yaml에 추가:
 ## 8. 오픈 이슈 (구현 시 확인)
 
 1. **flutter_tts/vibration 최신 안정 버전** — 구현 시 pub.dev에서 확인해 고정.
-2. **잔여시간 안내를 walk에만 붙일지** — 이번엔 walk에만(건너는 중 남은 시간). wait에
-   "N초 후 초록" 같은 안내는 이번 범위 밖(잔여시간 의미가 다름), 후속 검토.
-3. **진동 패턴의 정확한 밀리초 값** — 구현 시 실기기 체감으로 조정 가능하게 상수화.
+2. **진동 패턴의 정확한 밀리초 값** — 구현 시 실기기 체감으로 조정 가능하게 상수화.
+
+(잔여시간 스냅샷 vs 카운트다운, unknown 행동 지시, onDecision async 처리는 각각
+§1 결정 5, §4.2 문구표, §4.1에서 확정됨 — 더 이상 오픈 이슈 아님.)
 
 ---
 
