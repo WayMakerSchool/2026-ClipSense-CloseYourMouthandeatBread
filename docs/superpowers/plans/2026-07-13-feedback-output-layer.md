@@ -6,7 +6,7 @@
 
 **Architecture:** `app/lib/feedback/`에 3개 파일. FeedbackController(전환 감지·조율, onDecision은 Future<void>)가 SpeechOutput·HapticOutput 인터페이스에만 의존한다. 실제 백엔드(FlutterTtsSpeech, VibrationHaptic)는 인터페이스 뒤에 격리해, 전환 로직을 Fake 백엔드로 하드웨어 없이 테스트한다. 문구 생성(speechText)은 순수 함수라 테스트로 검증한다.
 
-**Tech Stack:** Flutter 3.35.6 / Dart 3.9.2. 의존성: flutter_tts ^4.2.5(기기 내장 TTS), vibration ^3.2.0(패턴 진동). 테스트: `flutter test`.
+**Tech Stack:** Flutter 3.35.6 / Dart 3.9.2. 의존성: flutter_tts ^4.2.5(기기 내장 TTS), vibration ^3.1.8(패턴 진동). 테스트: `flutter test`.
 
 ## Global Constraints
 
@@ -59,7 +59,7 @@ dependencies:
 
   http: ^1.2.0
   flutter_tts: ^4.2.5
-  vibration: ^3.2.0
+  vibration: ^3.1.8
 ```
 
 - [ ] **Step 2: 의존성 설치**
