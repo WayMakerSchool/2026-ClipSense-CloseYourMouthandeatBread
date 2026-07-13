@@ -45,7 +45,10 @@ class FlutterTtsSpeech implements SpeechOutput {
 
   @override
   Future<void> speak(String text) async {
-    // 새 안내가 오면 이전 것을 끊고 재생. 각 단계 실패는 삼킨다.
+    // 새 안내가 오면 이전 것을 끊고 재생.
+    // stop() 실패만 국소적으로 삼킨다(이전 안내 중단은 부가 작업).
+    // speak() 실패는 삼키지 않고 Future 에러로 전파한다 — 컨트롤러가
+    // 최종적으로 삼켜 멀티채널 독립을 보장한다(설계 §5).
     try {
       await _tts.stop();
     } catch (_) {}
