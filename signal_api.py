@@ -37,15 +37,28 @@ def _to_remain_sec(raw_cs) -> float | None:
 
 
 def parse_reading(records: list[dict], direction: str, now_ms: int,
-                  stale_ms: int = 2000) -> SignalReading:
+                  stale_ms: int = 2000, itst_id=None) -> SignalReading:
     """레코드 배열 + 방위 접두사(예 'ne') → SignalReading(source=API).
 
-    미지 상태/stale/신호 없음/빈 배열은 전부 color=UNKNOWN으로 안전하게 실패.
+    itst_id가 주어지면 records 중 itstId가 일치하는 첫 레코드만 사용한다
+    (numOfRows>1일 때 다른 교차로 신호를 잘못 읽는 것을 방지).
+    일치하는 레코드가 없으면 UNKNOWN. itst_id가 None이면 기존처럼 records[0]
+    (하위호환).
+
+    미지 상태/stale/신호 없음/빈 배열/itstId 불일치는 전부 color=UNKNOWN으로
+    안전하게 실패.
     """
     if not records:
         return SignalReading(UNKNOWN, None, SRC_API, fresh_ms=0)
 
-    rec = records[0]
+    if itst_id is None:
+        rec = records[0]
+    else:
+        rec = next((r for r in records if str(r.get("itstId")) == str(itst_id)),
+                   None)
+        if rec is None:
+            return SignalReading(UNKNOWN, None, SRC_API, fresh_ms=0)
+
     stat = rec.get(f"{direction}PdsgStatNm")
     rmdr = rec.get(f"{direction}PdsgRmdrCs")
 
@@ -58,6 +71,11 @@ def parse_reading(records: list[dict], direction: str, now_ms: int,
     try:
         fresh_ms = int(now_ms - float(trsm))
     except (TypeError, ValueError):
+        return SignalReading(UNKNOWN, None, SRC_API, fresh_ms=0, raw=raw)
+
+    # 미래 시각(시계 오차 등)은 신선도를 신뢰할 수 없다 → UNKNOWN (정직성).
+    # 작은 음수는 네트워크 지연/시계 미세오차로 허용, 큰 음수만 거부.
+    if fresh_ms < -stale_ms:
         return SignalReading(UNKNOWN, None, SRC_API, fresh_ms=0, raw=raw)
 
     # stale → UNKNOWN (원문 보존)
@@ -98,7 +116,7 @@ def fetch_reading(itst_id: str, direction: str, api_key: str, *,
         records = json.loads(body)
         if not isinstance(records, list):
             return SignalReading(UNKNOWN, None, SRC_API, fresh_ms=0)
-        return parse_reading(records, direction, now_ms=now_ms)
+        return parse_reading(records, direction, now_ms=now_ms, itst_id=itst_id)
     except Exception:
         # 네트워크/HTTP/JSON/기타 — 정직하게 UNKNOWN (조용히 실패)
         return SignalReading(UNKNOWN, None, SRC_API, fresh_ms=0)

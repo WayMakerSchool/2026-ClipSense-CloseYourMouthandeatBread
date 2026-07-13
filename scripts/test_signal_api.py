@@ -91,6 +91,32 @@ check("None이어도 raw 보존", r.raw == "protected-Movement-Allowed")
 r = parse_reading([rec(trsmUtcTime="not-a-number")], "ne", now_ms=NOW)
 check("trsmUtcTime 파싱불가 → UNKNOWN", r.color == UNKNOWN, f"실제 {r.color}")
 
+# --- 최종 리뷰: itstId 매칭 (엉뚱한 교차로 신호를 읽지 않도록) ---
+multi = [
+    rec(itstId="9999", nePdsgStatNm="stop-And-Remain", nePdsgRmdrCs=50),
+    rec(itstId="1537", nePdsgStatNm="protected-Movement-Allowed", nePdsgRmdrCs=241),
+]
+r = parse_reading(multi, "ne", now_ms=NOW, itst_id="1537")
+check("여러 레코드 중 itstId 매칭 선택", r.color == GREEN and r.remain_sec == 24.1,
+      f"실제 {r.color}/{r.remain_sec}")
+r = parse_reading(multi, "ne", now_ms=NOW, itst_id="0000")
+check("매칭 itstId 없으면 UNKNOWN", r.color == UNKNOWN, f"실제 {r.color}")
+r = parse_reading(multi, "ne", now_ms=NOW)  # itst_id 미지정 → 기존 동작(첫 레코드)
+check("itst_id 미지정 시 첫 레코드(하위호환)", r.color == RED, f"실제 {r.color}")
+
+# --- 최종 리뷰: 미래 시각 타임스탬프는 신선도 불신 → UNKNOWN ---
+r = parse_reading([rec(trsmUtcTime=NOW + 10000)], "ne", now_ms=NOW, stale_ms=2000)
+check("미래 시각(큰 음수 fresh) → UNKNOWN", r.color == UNKNOWN, f"실제 {r.color}")
+# 작은 음수(네트워크 지연 수준)는 여전히 통과
+r = parse_reading([rec(trsmUtcTime=NOW + 100)], "ne", now_ms=NOW, stale_ms=2000)
+check("작은 시계오차는 허용(초록 통과)", r.color == GREEN, f"실제 {r.color}")
+
+# --- 최종 리뷰: stale 경계 (정확히 stale_ms면 fresh로 취급 — > 연산) ---
+r = parse_reading([rec()], "ne", now_ms=NOW + 2000, stale_ms=2000)
+check("정확히 stale_ms 경계는 fresh(초록 통과)", r.color == GREEN, f"실제 {r.color}")
+r = parse_reading([rec()], "ne", now_ms=NOW + 2001, stale_ms=2000)
+check("stale_ms 초과는 UNKNOWN", r.color == UNKNOWN, f"실제 {r.color}")
+
 # --- Task 3: fetch_reading 오류 경로 (네트워크 없이 opener 주입) ---
 from signal_api import fetch_reading
 
@@ -123,6 +149,12 @@ def ok_opener(url, timeout):
 r = fetch_reading("1537", "ne", "dummy-key", now_ms=NOW, opener=ok_opener)
 check("정상 응답 → 파싱 위임(GREEN)", r.color == GREEN and r.remain_sec == 24.1,
       f"실제 {r.color}/{r.remain_sec}")
+
+def dict_opener(url, timeout):
+    return FakeResp(_json.dumps({"error": "not a list"}))
+
+r = fetch_reading("1537", "ne", "dummy-key", now_ms=NOW, opener=dict_opener)
+check("list 아닌 응답(dict) → UNKNOWN", r.color == UNKNOWN, f"실제 {r.color}")
 
 print("=" * 50)
 if FAILURES:
