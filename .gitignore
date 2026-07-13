@@ -29,3 +29,12 @@ scratchpad/
 
 # 진행 원장은 스크래치(추적 안 함) — .superpowers는 로컬 상태
 .superpowers/
+
+# Flutter (app/)
+app/build/
+app/.dart_tool/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/.packages
+app/ios/Pods/
+app/android/.gradle/
