@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:clip_sense/signals/signal_reading.dart';
 import 'package:clip_sense/signals/judge.dart';
@@ -111,5 +113,31 @@ void main() {
     await c.tickOnce();
     expect(notified, greaterThan(0));
     c.dispose();
+  });
+
+  test('dispose 경합: fetch 도중 dispose되면 재개된 tick이 notifyListeners를 부르지 않음', () async {
+    final fetchStarted = Completer<void>();
+    final releaseFetch = Completer<SignalReading>();
+    final c = GuidanceController(
+      feedback: feedback,
+      fetch: (itstId, direction, apiKey, {required nowMs}) async {
+        fetchStarted.complete();
+        return releaseFetch.future; // dispose()가 끝날 때까지 tick을 붙잡아 둠
+      },
+    );
+    var notified = 0;
+    c.addListener(() => notified++);
+
+    final pending = c.tickOnce(); // fire-and-forget처럼 await하지 않음(start()와 동일한 경합)
+    await fetchStarted.future; // fetch 호출 시점까지만 대기 → tick이 await 중
+    c.dispose(); // 아직 in-flight인 tick보다 먼저 dispose
+
+    releaseFetch.complete(const SignalReading(
+        SignalColor.green, 15.0, SignalSource.api, freshMs: 0));
+    // 위 completion으로 tickOnce()의 await _fetch(...) 뒤가 재개된다.
+    // _disposed 가드가 없다면 여기서 notifyListeners()가 disposed 객체에 호출되어 throw.
+    await expectLater(pending, completes);
+
+    expect(notified, 0); // dispose 이후 재개된 tick은 리스너를 부르면 안 됨
   });
 }
