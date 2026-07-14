@@ -21,6 +21,8 @@ class FakeHaptic implements HapticOutput {
 GuidanceController makeController(SignalReading reading) {
   return GuidanceController(
     feedback: FeedbackController(FakeSpeech(), FakeHaptic()),
+    itstId: '1850',
+    direction: 'st',
     fetch: (itstId, direction, apiKey, {required nowMs}) async => reading,
   );
 }

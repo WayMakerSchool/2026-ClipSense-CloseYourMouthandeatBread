@@ -22,6 +22,8 @@ typedef FetchReading = Future<SignalReading> Function(
 
 class GuidanceController extends ChangeNotifier {
   final FeedbackController _feedback;
+  final String _itstId;
+  final String _direction;
   final FetchReading _fetch;
   final Duration _interval;
   final bool _allowSingleSource;
@@ -34,10 +36,14 @@ class GuidanceController extends ChangeNotifier {
 
   GuidanceController({
     required FeedbackController feedback,
+    required String itstId,
+    required String direction,
     FetchReading? fetch,
     Duration interval = kLoopInterval,
     bool allowSingleSource = kAllowSingleSource,
   })  : _feedback = feedback,
+        _itstId = itstId,
+        _direction = direction,
         _fetch = fetch ?? _defaultFetch,
         _interval = interval,
         _allowSingleSource = allowSingleSource;
@@ -81,7 +87,7 @@ class GuidanceController extends ChangeNotifier {
     double? remain;
     try {
       final nowMs = DateTime.now().millisecondsSinceEpoch;
-      final apiReading = await _fetch(kItstId, kDirection, kApiKey, nowMs: nowMs);
+      final apiReading = await _fetch(_itstId, _direction, kApiKey, nowMs: nowMs);
       final visionReading = visionStub();
       d = decide(apiReading, visionReading,
           needSec: kNeedSec, allowSingleSource: _allowSingleSource);

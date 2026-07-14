@@ -36,6 +36,8 @@ void main() {
       {bool allowSingleSource = true}) {
     return GuidanceController(
       feedback: feedback,
+      itstId: '1850',
+      direction: 'st',
       allowSingleSource: allowSingleSource,
       fetch: (itstId, direction, apiKey, {required nowMs}) async => apiReading,
     );
@@ -78,6 +80,8 @@ void main() {
   test('fetch가 throw해도 tick은 unknown으로 수렴(타이머 안 죽음)', () async {
     final c = GuidanceController(
       feedback: feedback,
+      itstId: '1850',
+      direction: 'st',
       fetch: (itstId, direction, apiKey, {required nowMs}) async =>
           throw Exception('network'),
     );
@@ -135,6 +139,8 @@ void main() {
     final releaseFetch = Completer<SignalReading>();
     final c = GuidanceController(
       feedback: feedback,
+      itstId: '1850',
+      direction: 'st',
       fetch: (itstId, direction, apiKey, {required nowMs}) async {
         fetchStarted.complete();
         return releaseFetch.future; // dispose()가 끝날 때까지 tick을 붙잡아 둠
@@ -154,5 +160,24 @@ void main() {
     await expectLater(pending, completes);
 
     expect(notified, 0); // dispose 이후 재개된 tick은 리스너를 부르면 안 됨
+  });
+
+  test('tick은 생성자의 itstId·direction을 fetch에 전달한다', () async {
+    String? gotItst, gotDir;
+    final c = GuidanceController(
+      feedback: feedback,
+      itstId: '4031',
+      direction: 'et',
+      fetch: (itstId, direction, apiKey, {required nowMs}) async {
+        gotItst = itstId;
+        gotDir = direction;
+        return const SignalReading(SignalColor.red, null, SignalSource.api,
+            freshMs: 0);
+      },
+    );
+    await c.tickOnce();
+    expect(gotItst, '4031');
+    expect(gotDir, 'et');
+    c.dispose();
   });
 }
