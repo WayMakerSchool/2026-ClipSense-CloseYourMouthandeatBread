@@ -37,4 +37,14 @@ void main() {
     final r = nearest(37.5665, 126.9780, const [], radiusMeters: 100);
     expect(r, isNull);
   });
+
+  test('nearest: 거리가 정확히 반경과 같으면 포함(경계 inclusive)', () {
+    const it = Intersection('1850', 'A', 37.5665, 126.9780, [Direction('st', '남')]);
+    const list = [it];
+    final qLat = 37.5675, qLng = 126.9780; // A에서 북쪽으로 약간
+    final d = distanceMeters(qLat, qLng, it.lat, it.lng);
+    // 반경을 정확히 그 거리로 → 경계값. inclusive면 it 반환.
+    final r = nearest(qLat, qLng, list, radiusMeters: d);
+    expect(r?.itstId, '1850');
+  });
 }
