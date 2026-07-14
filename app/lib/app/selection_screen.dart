@@ -31,6 +31,7 @@ class SelectionScreen extends StatefulWidget {
 class _SelectionScreenState extends State<SelectionScreen> {
   _Phase _phase = _Phase.locating;
   Intersection? _found;
+  bool _navigating = false;
 
   @override
   void initState() {
@@ -61,14 +62,22 @@ class _SelectionScreenState extends State<SelectionScreen> {
   }
 
   void _choose(Intersection it, Direction dir) {
+    // 저시력·운동장애 사용자의 빠른 연속 탭(더블탭)이 GuidanceScreen을 두 번
+    // push해 GuidanceController(및 feedbackFactory())가 중복 생성되는 것을 막는다.
+    if (_navigating) return;
+    _navigating = true;
     final controller = GuidanceController(
       feedback: widget.feedbackFactory(),
       itstId: it.itstId,
       direction: dir.code,
     );
-    Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => GuidanceScreen(controller: controller),
-    ));
+    Navigator.of(context)
+        .push(MaterialPageRoute(
+          builder: (_) => GuidanceScreen(controller: controller),
+        ))
+        .then((_) {
+      if (mounted) _navigating = false;
+    });
   }
 
   @override

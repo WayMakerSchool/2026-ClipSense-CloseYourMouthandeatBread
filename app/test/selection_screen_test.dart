@@ -7,6 +7,7 @@ import 'package:clip_sense/feedback/feedback_controller.dart';
 import 'package:clip_sense/app/intersection.dart';
 import 'package:clip_sense/app/location_service.dart';
 import 'package:clip_sense/app/selection_screen.dart';
+import 'package:clip_sense/app/guidance_screen.dart';
 
 class FakeLocationService implements LocationService {
   final LocationResult result;
@@ -75,5 +76,40 @@ void main() {
     // 방향 버튼 하나의 Semantics 라벨에 방향 텍스트 포함
     final sem = tester.getSemantics(find.textContaining('북쪽 횡단보도').first);
     expect(sem.label, contains('북쪽'));
+  });
+
+  testWidgets('방향 버튼 빠른 연속 탭 → GuidanceScreen·컨트롤러는 한 번만 생성', (tester) async {
+    var feedbackBuildCount = 0;
+    FeedbackController countingFeedback() {
+      feedbackBuildCount++;
+      return fakeFeedback();
+    }
+
+    await tester.pumpWidget(MaterialApp(
+      home: SelectionScreen(
+        location: FakeLocationService(LocationOk(37.5665, 126.9780)),
+        feedbackFactory: countingFeedback,
+        intersections: _testList,
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    final directionButton = find.byWidgetPredicate(
+      (w) => w is GestureDetector && w.onTap != null,
+      description: 'direction button GestureDetector',
+    );
+    expect(directionButton, findsWidgets);
+    final onTap = tester.widget<GestureDetector>(directionButton.first).onTap!;
+
+    // 두 번째 탭이 첫 push의 렌더/애니메이션 완료 전에 들어오는 "더블탭"을
+    // 재현하기 위해, 실제 히트테스트 대신 콜백을 연속 호출해 레이스를 보장한다.
+    onTap();
+    onTap();
+    await tester.pumpAndSettle();
+
+    // 가드가 없다면 feedbackFactory()가 두 번 호출되어 GuidanceController(및
+    // TTS/햅틱 엔진)가 중복 생성된다. 가드가 있으면 첫 탭만 통과한다.
+    expect(feedbackBuildCount, 1);
+    expect(find.byType(GuidanceScreen), findsOneWidget);
   });
 }
