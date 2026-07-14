@@ -21,13 +21,19 @@ class GuidanceScreen extends StatelessWidget {
       builder: (context, _) {
         final v = _view(controller);
         return Scaffold(
-          body: Semantics(
-            button: true,
-            label: v.semanticLabel,
-            excludeSemantics: true,
-            child: GestureDetector(
-              onTap: controller.toggle,
-              behavior: HitTestBehavior.opaque,
+          body: GestureDetector(
+            onTap: controller.toggle,
+            behavior: HitTestBehavior.opaque,
+            // 버튼(탭 동작 + 상태 요약)과 상태 라이브 리전을 형제 노드로 분리.
+            // 버튼 쪽 Semantics는 excludeSemantics로 내부 Text들의 개별 낭독을
+            // 막아 라벨 하나로만 읽히게 하되, 상태 텍스트는 별도의
+            // liveRegion 노드로 두어 excludeSemantics에 가려지지 않게 한다
+            // (spec §4.3: 상태 전환 시 스크린리더가 재포커스 없이 자동 낭독).
+            child: Semantics(
+              key: const Key('guidanceButtonSemantics'),
+              button: true,
+              container: true,
+              label: v.semanticLabel,
               child: Container(
                 color: v.bg,
                 width: double.infinity,
@@ -35,30 +41,45 @@ class GuidanceScreen extends StatelessWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    if (v.icon != null)
-                      Text(v.icon!, style: const TextStyle(fontSize: 96)),
+                    Semantics(
+                      excludeSemantics: true,
+                      child: v.icon != null
+                          ? Text(v.icon!, style: const TextStyle(fontSize: 96))
+                          : const SizedBox.shrink(),
+                    ),
                     const SizedBox(height: 16),
-                    Text(
-                      v.title,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 56,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.white,
+                    Semantics(
+                      key: const Key('guidanceLiveRegionSemantics'),
+                      liveRegion: true,
+                      container: true,
+                      label: v.liveLabel,
+                      excludeSemantics: true,
+                      child: Column(
+                        children: [
+                          Text(
+                            v.title,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 56,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                            ),
+                          ),
+                          if (v.sub != null) ...[
+                            const SizedBox(height: 12),
+                            Text(
+                              v.sub!,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontSize: 34,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
-                    if (v.sub != null) ...[
-                      const SizedBox(height: 12),
-                      Text(
-                        v.sub!,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 34,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ],
                   ],
                 ),
               ),
@@ -75,8 +96,16 @@ class _View {
   final String? icon;
   final String title;
   final String? sub;
+  final String liveLabel;
   final String semanticLabel;
-  _View(this.bg, this.icon, this.title, this.sub, this.semanticLabel);
+  _View(
+    this.bg,
+    this.icon,
+    this.title,
+    this.sub,
+    this.liveLabel,
+    this.semanticLabel,
+  );
 }
 
 _View _view(GuidanceController c) {
@@ -89,39 +118,50 @@ _View _view(GuidanceController c) {
   // unknown이 아니면(walk/wait 판정이 있으면) running 여부와 무관하게 그
   // 판정을 그대로 보여준다.
   if (!c.running && c.decision == Decision.unknown) {
+    // liveLabel(상태만)과 semanticLabel(상태+조작 안내)이 같은 문구 조각을
+    // 공유 — 아래서 tapStart/tapStop을 붙여 semanticLabel을 만든다(DRY).
+    const liveLabel = '정지됨.';
     return _View(
       const Color(0xFF222222),
       null,
       '화면을 눌러\n안내를 시작하세요',
       null,
-      '정지됨.$tapStart',
+      liveLabel,
+      '$liveLabel$tapStart',
     );
   }
   switch (c.decision) {
     case Decision.walk:
       final sub = c.remainSec != null ? '${c.remainSec!.round()}초' : null;
+      final liveLabel =
+          '건너세요.${sub != null ? " $sub 남음." : ""}';
       return _View(
         const Color(0xFF0A8F3C),
         '🚶',
         '건너세요',
         sub,
-        '건너세요.${sub != null ? " $sub 남음." : ""}$tapStop',
+        liveLabel,
+        '$liveLabel$tapStop',
       );
     case Decision.wait:
+      const liveLabel = '기다리세요.';
       return _View(
         const Color(0xFFC31414),
         '✋',
         '기다리세요',
         null,
-        '기다리세요.$tapStop',
+        liveLabel,
+        '$liveLabel$tapStop',
       );
     case Decision.unknown:
+      const liveLabel = '신호를 확인할 수 없습니다. 대기하세요.';
       return _View(
         const Color(0xFF5A5A5A),
         '❓',
         '확인 불가',
         '대기하세요',
-        '신호를 확인할 수 없습니다. 대기하세요.$tapStop',
+        liveLabel,
+        '$liveLabel$tapStop',
       );
   }
 }
