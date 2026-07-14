@@ -4,6 +4,8 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>가까운 교차로의 보행 신호를 안내하기 위해 위치 정보를 사용합니다.</string>
 	<key>CFBundleDisplayName</key>
 	<string>Clip Sense</string>
 	<key>CFBundleExecutable</key>

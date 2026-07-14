@@ -20,24 +20,44 @@ abstract class LocationService {
   Future<LocationResult> current();
 }
 
-/// geolocator 기반 실제 구현. 하드웨어·권한 의존이라 단위 테스트 안 함.
+/// 서비스/권한 상태 → 결과 분류(순수). 실패 안내가 어느 것인지 결정하는 안전 로직.
+LocationResult? classifyLocation({
+  required bool serviceEnabled,
+  required LocationPermission permission,
+}) {
+  if (!serviceEnabled) return LocationUnavailable();
+  if (permission == LocationPermission.denied ||
+      permission == LocationPermission.deniedForever) {
+    return LocationDenied();
+  }
+  return null; // null = 진행 가능(위치 획득 시도)
+}
+
+/// geolocator 기반 실제 구현. 하드웨어·권한 의존이라 단위 테스트 안 함(분류 로직은
+/// classifyLocation으로 분리해 순수 테스트).
 /// 모든 예외를 삼켜 LocationUnavailable로 수렴(앱을 죽이지 않음).
 class GeolocatorLocationService implements LocationService {
   @override
   Future<LocationResult> current() async {
     try {
-      if (!await Geolocator.isLocationServiceEnabled()) {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
         return LocationUnavailable();
       }
       var perm = await Geolocator.checkPermission();
       if (perm == LocationPermission.denied) {
         perm = await Geolocator.requestPermission();
       }
-      if (perm == LocationPermission.denied ||
-          perm == LocationPermission.deniedForever) {
-        return LocationDenied();
-      }
-      final pos = await Geolocator.getCurrentPosition();
+      final classified = classifyLocation(
+        serviceEnabled: serviceEnabled,
+        permission: perm,
+      );
+      if (classified != null) return classified;
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          timeLimit: Duration(seconds: 10),
+        ),
+      );
       return LocationOk(pos.latitude, pos.longitude);
     } catch (_) {
       return LocationUnavailable();

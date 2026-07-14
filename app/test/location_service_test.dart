@@ -1,6 +1,7 @@
 // GeolocatorLocationService는 하드웨어 의존이라 테스트 안 함(인터페이스 뒤 격리).
 // 여기선 sealed 결과 타입과 Fake로 소비자 계약만 검증.
 import 'package:flutter_test/flutter_test.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:clip_sense/app/location_service.dart';
 
 class FakeLocationService implements LocationService {
@@ -35,5 +36,47 @@ void main() {
     expect(describe(LocationOk(1, 2)), 'ok');
     expect(describe(LocationDenied()), 'denied');
     expect(describe(LocationUnavailable()), 'unavailable');
+  });
+
+  group('classifyLocation', () {
+    test('serviceEnabled=false면 LocationUnavailable', () {
+      final r = classifyLocation(
+        serviceEnabled: false,
+        permission: LocationPermission.whileInUse,
+      );
+      expect(r, isA<LocationUnavailable>());
+    });
+
+    test('permission이 denied면 LocationDenied', () {
+      final r = classifyLocation(
+        serviceEnabled: true,
+        permission: LocationPermission.denied,
+      );
+      expect(r, isA<LocationDenied>());
+    });
+
+    test('permission이 deniedForever면 LocationDenied', () {
+      final r = classifyLocation(
+        serviceEnabled: true,
+        permission: LocationPermission.deniedForever,
+      );
+      expect(r, isA<LocationDenied>());
+    });
+
+    test('permission이 whileInUse면 진행 가능(null)', () {
+      final r = classifyLocation(
+        serviceEnabled: true,
+        permission: LocationPermission.whileInUse,
+      );
+      expect(r, isNull);
+    });
+
+    test('permission이 always면 진행 가능(null)', () {
+      final r = classifyLocation(
+        serviceEnabled: true,
+        permission: LocationPermission.always,
+      );
+      expect(r, isNull);
+    });
   });
 }
