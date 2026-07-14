@@ -85,4 +85,30 @@ void main() {
     expect(tester.getSemantics(find.byType(GuidanceScreen)), isNotNull);
     c.dispose();
   });
+
+  testWidgets(
+      'start→walk→stop 실제 경로: 정지 후 "건너세요"가 아니라 시작 안내가 보인다(안전)',
+      (tester) async {
+    final c = makeController(
+      const SignalReading(
+        SignalColor.green,
+        15.0,
+        SignalSource.api,
+        freshMs: 0,
+      ),
+    );
+    await tester.pumpWidget(MaterialApp(home: GuidanceScreen(controller: c)));
+
+    c.start();
+    await c.tickOnce();
+    await tester.pump();
+    expect(find.textContaining('건너세요'), findsOneWidget);
+
+    c.stop();
+    await tester.pump();
+    expect(find.textContaining('시작'), findsOneWidget);
+    expect(find.textContaining('건너세요'), findsNothing);
+
+    c.dispose();
+  });
 }

@@ -64,6 +64,11 @@ class GuidanceController extends ChangeNotifier {
     _timer?.cancel();
     _timer = null;
     _running = false;
+    // 정지 시 마지막 판정을 지운다 — 그대로 두면 정지 후에도 화면/스크린리더가
+    // 오래된 "건너세요"(walk)를 계속 보여줄 수 있음(안전: 실시간 근거 없는
+    // 판정을 전맹 사용자에게 노출하면 안 됨).
+    _decision = Decision.unknown;
+    _remainSec = null;
     notifyListeners();
   }
 

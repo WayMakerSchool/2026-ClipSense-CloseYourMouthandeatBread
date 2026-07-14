@@ -105,6 +105,21 @@ void main() {
     c.dispose();
   });
 
+  test('stop()은 walk 판정을 지운다 — 정지 후 화면/스크린리더에 오래된 '
+      '"건너세요"가 남으면 안 됨(안전)', () async {
+    final c = make(const SignalReading(
+        SignalColor.green, 15.0, SignalSource.api, freshMs: 0));
+    c.start();
+    await c.tickOnce(); // walk 판정 확정
+    expect(c.decision, Decision.walk);
+    expect(c.remainSec, 15.0);
+    c.stop();
+    expect(c.decision, Decision.unknown);
+    expect(c.remainSec, isNull);
+    expect(c.running, isFalse);
+    c.dispose();
+  });
+
   test('notifyListeners: tick이 리스너를 부른다', () async {
     final c = make(const SignalReading(
         SignalColor.green, 15.0, SignalSource.api, freshMs: 0));
