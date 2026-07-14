@@ -54,4 +54,81 @@ void main() {
     }
     expect(findContours(m, 100, 100).length, 2);
   });
+
+  // --- 퇴화(degenerate)/경계(border) 케이스: circularity가 NaN/Infinity를
+  // downstream(>= minCircularity 비교)으로 흘려보내지 않는지 고정한다.
+  // NaN >= threshold는 항상 false이므로, NaN이 새면 신호가 "조용히" 오검출된다.
+
+  test('단일 픽셀 blob → contour 1개, circularity 0.0(NaN 아님), throw 없음', () {
+    final m = Uint8List(100 * 100);
+    m[50 * 100 + 50] = 255; // 고립 픽셀 1개.
+    final cs = findContours(m, 100, 100);
+    expect(cs.length, 1);
+    expect(cs.first.length, 1);
+    final c = circularity(cs.first);
+    expect(c, 0.0);
+    expect(c.isFinite, isTrue);
+    expect(c.isNaN, isFalse);
+  });
+
+  test('1픽셀 폭 가로선(5픽셀, 높이1) → 면적 0, circularity 0.0, isFinite', () {
+    final m = Uint8List(100 * 100);
+    for (var x = 40; x < 45; x++) {
+      m[50 * 100 + x] = 255; // y=50 행에 5픽셀 연속.
+    }
+    final cs = findContours(m, 100, 100);
+    expect(cs.length, 1);
+    final area = contourArea(cs.first);
+    expect(area, 0.0);
+    final c = circularity(cs.first);
+    expect(c, 0.0);
+    expect(c.isFinite, isTrue);
+  });
+
+  test('빈 마스크 → findContours 빈 리스트(중복 확인, 명시적 계약)', () {
+    final m = Uint8List(50 * 50);
+    expect(findContours(m, 50, 50), isEmpty);
+  });
+
+  test('이미지 좌측 경계에 붙은 사각 blob → contour 1개, 닫힘(면적>0), circularity isFinite', () {
+    // x=0 경계에 flush로 붙은 채운 사각형: ROI 경계에 걸친 신호 blob 근사.
+    final m = filledRect(100, 100, 0, 30, 20, 70);
+    final cs = findContours(m, 100, 100);
+    expect(cs.length, 1);
+    final area = contourArea(cs.first);
+    expect(area, greaterThan(0.0));
+    final c = circularity(cs.first);
+    expect(c.isFinite, isTrue);
+    expect(c.isNaN, isFalse);
+  });
+
+  test('상단 행 중앙에 걸친 반원형 blob(top border) → contour 1개, 닫힘, circularity isFinite', () {
+    // y=0 행에서 잘린 반원: 위쪽 경계에 걸친 blob 근사.
+    final w = 100, h = 100;
+    final m = filledCircle(w, h, 50, 0, 20);
+    final cs = findContours(m, w, h);
+    expect(cs.length, 1);
+    final area = contourArea(cs.first);
+    expect(area, greaterThan(0.0));
+    final c = circularity(cs.first);
+    expect(c.isFinite, isTrue);
+  });
+
+  test('NaN 가드: 1px 선의 circularity는 항상 isFinite(>= minCircularity 비교를 보호)', () {
+    // perimeter는 >0일 수 있으나 area=0인 케이스에서도 circularity가
+    // NaN/Infinity로 새지 않아야 한다 — 이것이 findContours 결과를
+    // `circularity(c) >= minCircularity`로 판정하는 downstream 로직의
+    // 안전을 지키는 핵심 불변조건이다.
+    final m = Uint8List(100 * 100);
+    for (var x = 10; x < 15; x++) {
+      m[10 * 100 + x] = 255;
+    }
+    final cs = findContours(m, 100, 100);
+    expect(cs.length, 1);
+    final c = circularity(cs.first);
+    expect(c.isFinite, isTrue, reason: 'circularity must never be NaN/Infinity');
+    // NaN 비교는 항상 false이므로, 안전 쪽으로도 확인: 임계값 비교가
+    // 정상적으로 false로 판정되는지(오검출 없이 "원이 아님"으로 거부됨).
+    expect(c >= 0.7, isFalse);
+  });
 }
