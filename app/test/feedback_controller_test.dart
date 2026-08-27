@@ -46,6 +46,33 @@ void main() {
     expect(h.played.length, 1);
   });
 
+  test('reset 뒤 새 세션의 첫 상태는 같아도 다시 안내한다', () async {
+    final s = FakeSpeech();
+    final h = FakeHaptic();
+    final c = FeedbackController(s, h);
+    await c.onDecision(Decision.wait);
+    c.reset();
+    await c.onDecision(Decision.wait);
+    expect(s.spoken, ['기다리세요', '기다리세요']);
+    expect(h.played, [Decision.wait, Decision.wait]);
+  });
+
+  test('같은 wait라도 안전 근거가 바뀌면 다시 안내한다', () async {
+    final s = FakeSpeech();
+    final h = FakeHaptic();
+    final c = FeedbackController(s, h);
+    await c.onDecision(Decision.wait, reason: DecisionReason.sourceUnavailable);
+    await c.onDecision(
+      Decision.wait,
+      reason: DecisionReason.remainingInsufficient,
+    );
+    expect(s.spoken, [
+      'API 또는 카메라 신호를 확인하는 중입니다. 기다리세요',
+      '안전하게 건널 시간이 부족합니다. 기다리세요',
+    ]);
+    expect(h.played, [Decision.wait, Decision.wait]);
+  });
+
   test('전환 시 안내됨 (wait→walk)', () async {
     final s = FakeSpeech();
     final h = FakeHaptic();

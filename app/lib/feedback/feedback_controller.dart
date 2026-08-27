@@ -12,19 +12,31 @@ class FeedbackController {
   final SpeechOutput _speech;
   final HapticOutput _haptic;
   Decision? _last; // 직전에 안내한 Decision(초기 null → 첫 Decision은 항상 안내)
+  DecisionReason? _lastReason;
 
   FeedbackController(this._speech, this._haptic);
 
+  /// 안내 세션이 정지됐다 다시 시작되면 같은 상태라도 첫 판정을 다시 알린다.
+  void reset() {
+    _last = null;
+    _lastReason = null;
+  }
+
   /// Decision을 받아 전환 시에만 안내한다. `Future<void>`여야 각 백엔드의 async
   /// 실패를 개별 await+catch로 잡을 수 있다(void면 못 잡아 멀티채널 보장 깨짐).
-  Future<void> onDecision(Decision d, {double? remainSec}) async {
-    if (d == _last) return; // 같은 상태 지속 → 조용
+  Future<void> onDecision(
+    Decision d, {
+    double? remainSec,
+    DecisionReason? reason,
+  }) async {
+    if (d == _last && reason == _lastReason) return; // 같은 상태·근거 지속 → 조용
     _last = d;
+    _lastReason = reason;
 
     // 두 백엔드를 각각 개별 await + try/catch. speech가 async로 실패해도
     // haptic await는 반드시 실행된다(멀티채널 독립, 설계 §5).
     try {
-      await _speech.speak(speechText(d, remainSec: remainSec));
+      await _speech.speak(speechText(d, remainSec: remainSec, reason: reason));
     } catch (_) {
       // 음성 실패는 삼킴 — 진동을 막지 않는다.
     }

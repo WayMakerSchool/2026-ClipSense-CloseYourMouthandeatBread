@@ -17,7 +17,7 @@ abstract class SpeechOutput {
 ///
 /// walk에만 remainSec을 붙인다(전환 시 스냅샷 1회, 반올림 정수 초).
 /// unknown은 상태 서술에 그치지 않고 행동 지시(대기)를 포함한다 — Fail-Safe.
-String speechText(Decision d, {double? remainSec}) {
+String speechText(Decision d, {double? remainSec, DecisionReason? reason}) {
   switch (d) {
     case Decision.walk:
       if (remainSec != null) {
@@ -25,8 +25,12 @@ String speechText(Decision d, {double? remainSec}) {
       }
       return '지금 건너셔도 됩니다';
     case Decision.wait:
-      return '기다리세요';
+      if (reason == null) return '기다리세요';
+      return '${decisionReasonText(reason)}. 기다리세요';
     case Decision.unknown:
+      if (reason != null && reason != DecisionReason.sourcesUnavailable) {
+        return '${decisionReasonText(reason)}. 대기하세요';
+      }
       return '신호를 확인할 수 없습니다. 대기하세요';
   }
 }

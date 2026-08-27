@@ -8,17 +8,35 @@ void main() {
   });
 
   test('walk + 잔여시간(반올림 정수 초)', () {
-    expect(speechText(Decision.walk, remainSec: 15.0),
-        '지금 건너셔도 됩니다, 15초 남았습니다');
+    expect(
+      speechText(Decision.walk, remainSec: 15.0),
+      '지금 건너셔도 됩니다, 15초 남았습니다',
+    );
   });
 
   test('walk 잔여시간 반올림', () {
-    expect(speechText(Decision.walk, remainSec: 14.6),
-        '지금 건너셔도 됩니다, 15초 남았습니다');
+    expect(
+      speechText(Decision.walk, remainSec: 14.6),
+      '지금 건너셔도 됩니다, 15초 남았습니다',
+    );
   });
 
   test('wait 문구', () {
     expect(speechText(Decision.wait), '기다리세요');
+  });
+
+  test('wait는 판정 근거를 함께 안내한다', () {
+    expect(
+      speechText(Decision.wait, reason: DecisionReason.remainingInsufficient),
+      '안전하게 건널 시간이 부족합니다. 기다리세요',
+    );
+  });
+
+  test('API 키 누락은 일반 신호 장애와 구분한다', () {
+    expect(
+      speechText(Decision.unknown, reason: DecisionReason.apiKeyMissing),
+      'T-Data API 키가 설정되지 않았습니다. 대기하세요',
+    );
   });
 
   test('unknown 문구에 행동 지시(대기) 포함', () {
@@ -29,7 +47,9 @@ void main() {
 
   test('walk가 아니면 remainSec 무시', () {
     expect(speechText(Decision.wait, remainSec: 15.0), '기다리세요');
-    expect(speechText(Decision.unknown, remainSec: 15.0),
-        '신호를 확인할 수 없습니다. 대기하세요');
+    expect(
+      speechText(Decision.unknown, remainSec: 15.0),
+      '신호를 확인할 수 없습니다. 대기하세요',
+    );
   });
 }
