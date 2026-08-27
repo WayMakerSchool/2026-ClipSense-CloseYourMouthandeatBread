@@ -14,9 +14,11 @@ TESTS = [
     "test_signal_api.py",
     "test_vision_adapter.py",
     "test_judge.py",
+    "test_main_config.py",
     "test_detector.py",
     "test_state_machine.py",
     "test_digits.py",
+    "test_digits_robust.py",
     "test_voice.py",
 ]
 

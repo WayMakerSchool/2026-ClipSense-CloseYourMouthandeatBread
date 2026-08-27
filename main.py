@@ -12,8 +12,12 @@
                 d = (선택) 잔여시간 숫자 영역 지정
 """
 
+from __future__ import annotations
+
 import argparse
 import json
+import math
+import numbers
 import sys
 import time
 from pathlib import Path
@@ -26,6 +30,11 @@ from detector import (ColorDetector, SignalStateMachine, VOICE_KEY, RAW_NONE,
 from digits import DigitReader
 
 CONFIG_PATH = Path(__file__).resolve().parent / "config.json"
+LOCAL_CONFIG_PATH = Path(__file__).resolve().parent / "config.local.json"
+_RUNTIME_CONFIG_KEYS = (
+    "roi", "roi_frame_size", "roi_source",
+    "digit_roi", "digit_roi_frame_size", "digit_roi_source",
+)
 
 # 종료 코드: run_demo 재시작 루프가 이 값으로 재시작 여부를 판단한다.
 # 0=정상 종료, 1=런타임/하드웨어 실패(재시작으로 복구 가능),
@@ -44,7 +53,7 @@ STATE_COLOR = {  # BGR (디버그 오버레이용)
 PANEL_W = 960
 
 
-def load_config(path: Path) -> dict:
+def _read_json(path: Path) -> dict:
     try:
         with open(path, encoding="utf-8") as f:
             return json.load(f)
@@ -55,13 +64,159 @@ def load_config(path: Path) -> dict:
         print(f"오류: 설정 파일이 손상되었습니다 ({path}, {e.lineno}행). "
               "git 원본으로 복구하거나 백업본으로 교체하세요.")
         sys.exit(EXIT_CONFIG)
+    except OSError as e:
+        print(f"오류: 설정 파일을 읽을 수 없습니다: {path} ({e})")
+        sys.exit(EXIT_CONFIG)
 
 
-def save_config(path: Path, cfg: dict) -> None:
-    tmp = path.with_suffix(".json.tmp")  # 원자적 쓰기 (중간 크래시로 손상 방지)
+def load_config(path: Path) -> dict:
+    """기본 임계값을 읽고, 기본 파일 사용 시 로컬 ROI 상태만 덮어쓴다."""
+    cfg = _read_json(path)
+    if path.resolve() == CONFIG_PATH.resolve() and LOCAL_CONFIG_PATH.exists():
+        local = _read_json(LOCAL_CONFIG_PATH)
+        if not isinstance(local, dict):
+            print(f"오류: 로컬 설정은 JSON 객체여야 합니다: {LOCAL_CONFIG_PATH}")
+            sys.exit(EXIT_CONFIG)
+        for key in _RUNTIME_CONFIG_KEYS:
+            if key in local:
+                cfg[key] = local[key]
+    return cfg
+
+
+def validate_config(cfg: dict) -> None:
+    """런타임에서 쓰는 설정의 구조·범위를 시작 전에 검증한다.
+
+    유효한 JSON이어도 필수 키 누락이나 잘못된 타입이면 검출 루프 중 예외가
+    날 수 있다. 그런 오류는 재시작으로 회복되지 않으므로 ValueError로 모아
+    EXIT_CONFIG(2) 경로로 보낸다.
+    """
+    if not isinstance(cfg, dict):
+        raise ValueError("최상위 값은 JSON 객체여야 합니다")
+
+    def number(key: str, *, minimum=None, maximum=None,
+               strict_minimum: bool = False) -> float:
+        value = cfg.get(key)
+        if (isinstance(value, bool) or not isinstance(value, numbers.Real)
+                or not math.isfinite(value)):
+            raise ValueError(f"{key}는 숫자여야 합니다")
+        if minimum is not None:
+            bad = value <= minimum if strict_minimum else value < minimum
+            if bad:
+                op = ">" if strict_minimum else ">="
+                raise ValueError(f"{key}는 {op} {minimum} 값이어야 합니다")
+        if maximum is not None and value > maximum:
+            raise ValueError(f"{key}는 {maximum} 이하여야 합니다")
+        return float(value)
+
+    def positive_int(key: str) -> int:
+        value = cfg.get(key)
+        if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+            raise ValueError(f"{key}는 양의 정수여야 합니다")
+        return value
+
+    def hsv_ranges(value, label: str) -> None:
+        if not isinstance(value, list) or not value:
+            raise ValueError(f"{label}는 하나 이상의 HSV 범위 목록이어야 합니다")
+        for index, item in enumerate(value):
+            if not isinstance(item, dict):
+                raise ValueError(f"{label}[{index}]는 객체여야 합니다")
+            lower, upper = item.get("lower"), item.get("upper")
+            if (not isinstance(lower, list) or not isinstance(upper, list)
+                    or len(lower) != 3 or len(upper) != 3):
+                raise ValueError(f"{label}[{index}] lower/upper는 숫자 3개여야 합니다")
+            limits = (180, 255, 255)
+            for channel, (lo, hi, limit) in enumerate(zip(lower, upper, limits)):
+                if (isinstance(lo, bool) or isinstance(hi, bool)
+                        or not isinstance(lo, numbers.Real)
+                        or not isinstance(hi, numbers.Real)
+                        or not math.isfinite(lo) or not math.isfinite(hi)
+                        or lo < 0 or hi > limit or lo > hi):
+                    raise ValueError(
+                        f"{label}[{index}] 채널 {channel} 범위가 잘못되었습니다")
+
+    hsv = cfg.get("hsv")
+    if not isinstance(hsv, dict):
+        raise ValueError("hsv는 객체여야 합니다")
+    hsv_ranges(hsv.get("red"), "hsv.red")
+    hsv_ranges(hsv.get("green"), "hsv.green")
+
+    min_area = number("min_area_ratio", minimum=0, maximum=1,
+                      strict_minimum=True)
+    max_area = number("max_area_ratio", minimum=0, maximum=1,
+                      strict_minimum=True)
+    if min_area >= max_area:
+        raise ValueError("min_area_ratio는 max_area_ratio보다 작아야 합니다")
+    number("min_circularity", minimum=0, maximum=1)
+    number("min_brightness", minimum=0, maximum=255)
+    number("brightness_jump", minimum=0, maximum=255)
+    number("brightness_ema_alpha", minimum=0, maximum=1,
+           strict_minimum=True)
+    number("valid_exit_factor", minimum=0, maximum=1,
+           strict_minimum=True)
+    positive_int("morph_kernel")
+    positive_int("debounce_frames")
+    number("blink_window_seconds", minimum=0, strict_minimum=True)
+    positive_int("blink_min_toggles")
+    number("blink_min_segment_seconds", minimum=0, strict_minimum=True)
+    number("unknown_after_seconds", minimum=0, strict_minimum=True)
+    number("voice_cooldown_seconds", minimum=0)
+
+    for key in ("roi", "digit_roi"):
+        roi = cfg.get(key)
+        if roi is None:
+            continue
+        if (not isinstance(roi, list) or len(roi) != 4
+                or any(isinstance(v, bool) or not isinstance(v, int) for v in roi)
+                or roi[2] <= 0 or roi[3] <= 0):
+            raise ValueError(f"{key}는 [x, y, w, h] 정수 4개이며 w/h는 양수여야 합니다")
+
+    digits_cfg = cfg.get("digits")
+    if digits_cfg is None:
+        return
+    if not isinstance(digits_cfg, dict):
+        raise ValueError("digits는 객체여야 합니다")
+    if digits_cfg.get("red_hsv") is not None:
+        hsv_ranges(digits_cfg["red_hsv"], "digits.red_hsv")
+
+    def digit_number(key: str, default: float, *, minimum=0, maximum=1) -> float:
+        value = digits_cfg.get(key, default)
+        if (isinstance(value, bool) or not isinstance(value, numbers.Real)
+                or not math.isfinite(value)):
+            raise ValueError(f"digits.{key}는 숫자여야 합니다")
+        if value < minimum or value > maximum:
+            raise ValueError(f"digits.{key} 범위가 잘못되었습니다")
+        return float(value)
+
+    seg_on = digit_number("seg_on_ratio", 0.5)
+    seg_off = digit_number("seg_off_ratio", 0.2)
+    min_fill = digit_number("min_cell_fill", 0.08)
+    max_fill = digit_number("max_cell_fill", 0.65)
+    digit_number("max_cell_aspect", 0.82, minimum=0.01, maximum=10)
+    if seg_off >= seg_on:
+        raise ValueError("digits.seg_off_ratio는 seg_on_ratio보다 작아야 합니다")
+    if min_fill >= max_fill:
+        raise ValueError("digits.min_cell_fill은 max_cell_fill보다 작아야 합니다")
+    stable_window = digits_cfg.get("stable_window", 5)
+    stable_votes = digits_cfg.get("stable_votes", 3)
+    if (isinstance(stable_window, bool) or not isinstance(stable_window, int)
+            or stable_window <= 0):
+        raise ValueError("digits.stable_window는 양의 정수여야 합니다")
+    if (isinstance(stable_votes, bool) or not isinstance(stable_votes, int)
+            or not 1 <= stable_votes <= stable_window):
+        raise ValueError("digits.stable_votes는 1 이상 stable_window 이하여야 합니다")
+
+
+def save_config(path: Path, cfg: dict) -> Path:
+    # 추적 중인 기본 config.json에는 HSV 임계값만 둔다. 카메라마다 달라지는 ROI는
+    # ignored config.local.json에 저장해 실수로 공개·커밋되지 않게 한다.
+    target = LOCAL_CONFIG_PATH if path.resolve() == CONFIG_PATH.resolve() else path
+    payload = ({key: cfg.get(key) for key in _RUNTIME_CONFIG_KEYS if key in cfg}
+               if target == LOCAL_CONFIG_PATH else cfg)
+    tmp = target.with_suffix(".json.tmp")  # 원자적 쓰기 (중간 크래시로 손상 방지)
     with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(cfg, f, ensure_ascii=False, indent=2)
-    tmp.replace(path)
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+    tmp.replace(target)
+    return target
 
 
 def save_roi(path: Path, cfg: dict, roi: tuple[int, int, int, int],
@@ -69,8 +224,8 @@ def save_roi(path: Path, cfg: dict, roi: tuple[int, int, int, int],
     cfg["roi"] = list(roi)
     cfg["roi_frame_size"] = [int(frame_shape[1]), int(frame_shape[0])]  # [w, h]
     cfg["roi_source"] = source  # "video" / "camera:0" — 소스가 다르면 재선택 강제
-    save_config(path, cfg)
-    print(f"ROI 저장됨: {list(roi)} -> {path}")
+    saved_path = save_config(path, cfg)
+    print(f"ROI 저장됨: {list(roi)} -> {saved_path}")
 
 
 def save_digit_roi(path: Path, cfg: dict, droi, frame_shape, source: str) -> None:
@@ -182,6 +337,11 @@ def main() -> int:
 
     cfg_path = Path(args.config)
     cfg = load_config(cfg_path)
+    try:
+        validate_config(cfg)
+    except ValueError as e:
+        print(f"오류: 설정 값이 잘못되었습니다 ({cfg_path}): {e}")
+        return EXIT_CONFIG
 
     is_video = args.video is not None
     cap = cv2.VideoCapture(args.video if is_video else args.camera)

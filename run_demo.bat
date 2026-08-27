@@ -38,7 +38,8 @@ if %CODE%==2 (
     echo.
     echo !! 설정 오류로 종료했습니다 ^(위 메시지 참고^). 재시작하지 않습니다.
     echo    ROI를 다시 잡으려면: run_demo.bat --reselect-roi
-    goto end
+    pause
+    exit /b 2
 )
 echo.
 echo !! 예기치 못한 종료 ^(코드 %CODE%^). 2초 후 재시작합니다...
@@ -49,3 +50,4 @@ goto loop
 :end
 echo.
 pause
+exit /b 0
