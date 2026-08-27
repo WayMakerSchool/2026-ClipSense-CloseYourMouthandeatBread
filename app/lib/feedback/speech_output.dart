@@ -4,6 +4,8 @@
 /// 안내 문구로 바꾸는 순수 함수라 하드웨어 없이 검증된다.
 library;
 
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter_tts/flutter_tts.dart';
 
 import '../signals/judge.dart';
@@ -45,6 +47,34 @@ class FlutterTtsSpeech implements SpeechOutput {
   FlutterTtsSpeech([FlutterTts? tts]) : _tts = tts ?? FlutterTts() {
     // 한국어 로케일. 실패해도 무시(기기가 지원 안 하면 기본 로케일로 동작).
     _tts.setLanguage('ko-KR').catchError((_) {});
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      _configureIosAudioSession();
+    }
+  }
+
+  /// iOS/iPadOS: 무음 스위치·제어센터 음소거 상태에서도 안내가 들리게 한다.
+  ///
+  /// flutter_tts 기본 카테고리(soloAmbient)는 무음 스위치에 따라 음성이 끊기는데
+  /// 보행 안내가 소리 없이 새는 것은 위험하다. playback 카테고리는 무음 스위치를
+  /// 무시한다. duckOthers는 다른 앱 음악을 줄이고, interruptSpokenAudioAndMixWithOthers
+  /// 는 다른 앱의 음성(내비게이션·팟캐스트)을 잠시 멈춘다 — Apple이 턴바이턴 안내에
+  /// 권장하는 조합. voicePrompt 모드는 짧은 음성 안내용 시스템 프리셋.
+  /// 카테고리를 정한 뒤 세션을 활성화(setSharedInstance)해야 playback이 적용된다.
+  /// 어느 단계가 실패해도 삼킨다 — 기본 세션으로라도 speak는 계속 시도한다.
+  void _configureIosAudioSession() {
+    _tts
+        .setIosAudioCategory(
+          IosTextToSpeechAudioCategory.playback,
+          const [
+            IosTextToSpeechAudioCategoryOptions.duckOthers,
+            IosTextToSpeechAudioCategoryOptions
+                .interruptSpokenAudioAndMixWithOthers,
+          ],
+          IosTextToSpeechAudioMode.voicePrompt,
+        )
+        .catchError((_) {})
+        .then((_) => _tts.setSharedInstance(true))
+        .catchError((_) {});
   }
 
   @override
