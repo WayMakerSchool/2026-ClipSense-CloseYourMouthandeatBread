@@ -44,7 +44,8 @@ String speechText(Decision d, {double? remainSec, DecisionReason? reason}) {
 
 /// flutter_tts 기반 실제 음성 출력. 기기 내장 한국어 TTS(오프라인).
 ///
-/// 하드웨어·OS 의존이라 단위 테스트하지 않는다(인터페이스 뒤 격리, 실기기 수동).
+/// 실제 발화는 하드웨어·OS 의존이라 실기기에서 수동 확인한다. 설정 호출(로케일·iOS
+/// 오디오 세션)은 test/flutter_tts_speech_test.dart가 서브클래스 기록 방식으로 고정한다.
 /// speak 실패(권한/미지원/플랫폼 예외)는 삼켜 앱을 죽이지 않는다(Fail-Safe).
 class FlutterTtsSpeech implements SpeechOutput {
   final FlutterTts _tts;

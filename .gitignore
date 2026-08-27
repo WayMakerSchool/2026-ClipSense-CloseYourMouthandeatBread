@@ -44,3 +44,6 @@ app/.flutter-plugins-dependencies
 app/.packages
 app/ios/Pods/
 app/android/.gradle/
+
+# Claude Code 워크플로 worktree (로컬 전용)
+.claude/worktrees/
