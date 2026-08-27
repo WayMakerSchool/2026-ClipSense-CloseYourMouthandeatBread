@@ -128,34 +128,55 @@ class _SelectionScreenState extends State<SelectionScreen> {
     ),
   );
 
+  /// 큰버튼. 터치는 GestureDetector가, 스크린리더(TalkBack/VoiceOver)의 두 번
+  /// 탭은 Semantics.onTap이 받는다. excludeSemantics로 자식 트리를 접근성
+  /// 트리에서 빼기 때문에 GestureDetector의 탭 액션은 노출되지 않는다 —
+  /// onTap을 Semantics 노드 자체에 달아야 활성화가 실제 동작으로 이어진다.
+  Widget _bigButton({
+    required String label,
+    required VoidCallback onTap,
+    required Color color,
+    double fontSize = 34,
+    FontWeight fontWeight = FontWeight.w900,
+    double verticalPadding = 32,
+  }) => Semantics(
+    button: true,
+    label: label,
+    onTap: onTap,
+    excludeSemantics: true,
+    child: GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: double.infinity,
+        padding: EdgeInsets.symmetric(vertical: verticalPadding),
+        color: color,
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: fontSize,
+            fontWeight: fontWeight,
+            color: Colors.white,
+          ),
+        ),
+      ),
+    ),
+  );
+
   Widget _messageWithRetry(String text) => Column(
     mainAxisAlignment: MainAxisAlignment.center,
     children: [
       Expanded(child: _message(text)),
       Padding(
         padding: const EdgeInsets.all(16),
-        child: Semantics(
-          button: true,
+        child: _bigButton(
           label: '다시 시도',
-          excludeSemantics: true,
-          child: GestureDetector(
-            onTap: _locate,
-            behavior: HitTestBehavior.opaque,
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 28),
-              color: const Color(0xFF3A3A3A),
-              child: const Text(
-                '다시 시도',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 30,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ),
+          onTap: _locate,
+          color: const Color(0xFF3A3A3A),
+          fontSize: 30,
+          fontWeight: FontWeight.w800,
+          verticalPadding: 28,
         ),
       ),
     ],
@@ -187,28 +208,10 @@ class _SelectionScreenState extends State<SelectionScreen> {
                   horizontal: 16,
                   vertical: 8,
                 ),
-                child: Semantics(
-                  button: true,
+                child: _bigButton(
                   label: dir.label,
-                  excludeSemantics: true,
-                  child: GestureDetector(
-                    onTap: () => _choose(it, dir),
-                    behavior: HitTestBehavior.opaque,
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 32),
-                      color: const Color(0xFF0A5FA8),
-                      child: Text(
-                        dir.label,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 34,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
+                  onTap: () => _choose(it, dir),
+                  color: const Color(0xFF0A5FA8),
                 ),
               ),
           ],
