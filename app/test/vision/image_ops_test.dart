@@ -10,12 +10,15 @@ import 'blur_expected.dart';
 Uint8List hsvSolid(int n, int h, int s, int v) {
   final b = Uint8List(n * 3);
   for (var i = 0; i < n; i++) {
-    b[i * 3] = h; b[i * 3 + 1] = s; b[i * 3 + 2] = v;
+    b[i * 3] = h;
+    b[i * 3 + 1] = s;
+    b[i * 3 + 2] = v;
   }
   return b;
 }
 
-RoiImage _img(int w, int h, List<int> px) => RoiImage(w, h, Uint8List.fromList(px));
+RoiImage _img(int w, int h, List<int> px) =>
+    RoiImage(w, h, Uint8List.fromList(px));
 
 /// 블러 결과를 기대 픽셀과 채널 단위로 비교 (어긋난 픽셀 좌표를 reason에 표시).
 void _expectPixels(RoiImage got, int w, int h, List<int> expected) {
@@ -23,14 +26,20 @@ void _expectPixels(RoiImage got, int w, int h, List<int> expected) {
   expect(got.height, h);
   expect(got.bytes.length, w * h * 3);
   for (var i = 0; i < expected.length; i++) {
-    expect(got.bytes[i], expected[i],
-        reason: 'pixel ${i ~/ 3} (x=${(i ~/ 3) % w}, y=${i ~/ 3 ~/ w}) ch=${i % 3}');
+    expect(
+      got.bytes[i],
+      expected[i],
+      reason:
+          'pixel ${i ~/ 3} (x=${(i ~/ 3) % w}, y=${i ~/ 3 ~/ w}) ch=${i % 3}',
+    );
   }
 }
 
 void main() {
   test('inRangeHsv: 범위 안 → 255, 밖 → 0', () {
-    const red = [HsvRange([0, 55, 45], [12, 255, 255])];
+    const red = [
+      HsvRange([0, 55, 45], [12, 255, 255]),
+    ];
     // H=5,S=200,V=200 → 범위 안
     expect(inRangeHsv(hsvSolid(1, 5, 200, 200), 1, red)[0], 255);
     // H=100 → 밖
@@ -92,16 +101,36 @@ void main() {
   });
 
   test('경계 반사(BORDER_REFLECT_101): 커널보다 작은 이미지도 cv2와 일치', () {
-    _expectPixels(gaussianBlur5x5(_img(blurTiny2x2W, blurTiny2x2H, blurTiny2x2Input)),
-        blurTiny2x2W, blurTiny2x2H, blurTiny2x2Expected5x5);
-    _expectPixels(gaussianBlur3x3(_img(blurTiny2x2W, blurTiny2x2H, blurTiny2x2Input)),
-        blurTiny2x2W, blurTiny2x2H, blurTiny2x2Expected3x3);
-    _expectPixels(gaussianBlur5x5(_img(blurCol1x4W, blurCol1x4H, blurCol1x4Input)),
-        blurCol1x4W, blurCol1x4H, blurCol1x4Expected5x5);
-    _expectPixels(gaussianBlur3x3(_img(blurCol1x4W, blurCol1x4H, blurCol1x4Input)),
-        blurCol1x4W, blurCol1x4H, blurCol1x4Expected3x3);
-    _expectPixels(gaussianBlur5x5(_img(blurOne1x1W, blurOne1x1H, blurOne1x1Input)),
-        blurOne1x1W, blurOne1x1H, blurOne1x1Expected5x5);
+    _expectPixels(
+      gaussianBlur5x5(_img(blurTiny2x2W, blurTiny2x2H, blurTiny2x2Input)),
+      blurTiny2x2W,
+      blurTiny2x2H,
+      blurTiny2x2Expected5x5,
+    );
+    _expectPixels(
+      gaussianBlur3x3(_img(blurTiny2x2W, blurTiny2x2H, blurTiny2x2Input)),
+      blurTiny2x2W,
+      blurTiny2x2H,
+      blurTiny2x2Expected3x3,
+    );
+    _expectPixels(
+      gaussianBlur5x5(_img(blurCol1x4W, blurCol1x4H, blurCol1x4Input)),
+      blurCol1x4W,
+      blurCol1x4H,
+      blurCol1x4Expected5x5,
+    );
+    _expectPixels(
+      gaussianBlur3x3(_img(blurCol1x4W, blurCol1x4H, blurCol1x4Input)),
+      blurCol1x4W,
+      blurCol1x4H,
+      blurCol1x4Expected3x3,
+    );
+    _expectPixels(
+      gaussianBlur5x5(_img(blurOne1x1W, blurOne1x1H, blurOne1x1Input)),
+      blurOne1x1W,
+      blurOne1x1H,
+      blurOne1x1Expected5x5,
+    );
   });
 
   test('블러는 입력을 바꾸지 않고 새 버퍼를 돌려준다', () {
@@ -115,7 +144,9 @@ void main() {
   test('단색 이미지는 블러 후에도 단색 (커널 합 = 1)', () {
     final px = List<int>.filled(6 * 5 * 3, 0);
     for (var i = 0; i < 6 * 5; i++) {
-      px[i * 3] = 17; px[i * 3 + 1] = 200; px[i * 3 + 2] = 99;
+      px[i * 3] = 17;
+      px[i * 3 + 1] = 200;
+      px[i * 3 + 2] = 99;
     }
     _expectPixels(gaussianBlur5x5(_img(6, 5, px)), 6, 5, px);
     _expectPixels(gaussianBlur3x3(_img(6, 5, px)), 6, 5, px);

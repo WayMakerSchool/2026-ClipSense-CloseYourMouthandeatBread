@@ -29,7 +29,11 @@ class ColorStat {
   final double circularity; // 4πA/P² (원=1.0, 보행자 아이콘은 낮음)
   final bool valid;
 
-  const ColorStat({this.areaRatio = 0.0, this.circularity = 0.0, this.valid = false});
+  const ColorStat({
+    this.areaRatio = 0.0,
+    this.circularity = 0.0,
+    this.valid = false,
+  });
 }
 
 /// 프레임 1장에 대한 판정 결과.
@@ -38,7 +42,8 @@ class FrameResult {
   final ColorStat red;
   final ColorStat green;
   final double brightness; // ROI 평균 밝기 (HSV V)
-  final String reason; // raw=NONE인 이유: too_dark / brightness_jump / blob_too_large / no_blob
+  final String
+  reason; // raw=NONE인 이유: too_dark / brightness_jump / blob_too_large / no_blob
 
   const FrameResult({
     this.raw = rawNone,
@@ -64,7 +69,13 @@ class ColorDetector {
     return mask;
   }
 
-  ColorStat _analyze(Uint8List mask, int w, int h, int roiArea, double minAreaRatio) {
+  ColorStat _analyze(
+    Uint8List mask,
+    int w,
+    int h,
+    int roiArea,
+    double minAreaRatio,
+  ) {
     final contours = findContours(mask, w, h);
     if (contours.isEmpty) return const ColorStat();
 
@@ -79,14 +90,20 @@ class ColorDetector {
     }
     final area = largestArea;
     final perimeter = arcLength(largest!);
-    final circ = perimeter > 0 ? (4 * 3.141592653589793 * area / (perimeter * perimeter)) : 0.0;
+    final circ = perimeter > 0
+        ? (4 * 3.141592653589793 * area / (perimeter * perimeter))
+        : 0.0;
     final areaRatio = area / roiArea;
-    final valid = minAreaRatio <= areaRatio && areaRatio <= _cfg.maxAreaRatio && circ >= _cfg.minCircularity;
+    final valid =
+        minAreaRatio <= areaRatio &&
+        areaRatio <= _cfg.maxAreaRatio &&
+        circ >= _cfg.minCircularity;
     return ColorStat(areaRatio: areaRatio, circularity: circ, valid: valid);
   }
 
-  double _thr(String colorRaw) =>
-      _lastRaw == colorRaw ? _cfg.minAreaRatio * _cfg.validExitFactor : _cfg.minAreaRatio;
+  double _thr(String colorRaw) => _lastRaw == colorRaw
+      ? _cfg.minAreaRatio * _cfg.validExitFactor
+      : _cfg.minAreaRatio;
 
   FrameResult detect(RoiImage roi) {
     // detector.py와 같은 위치: HSV 변환 직전 5x5 가우시안 블러(OpenCV와 수치 동일).
@@ -105,7 +122,9 @@ class ColorDetector {
 
     _brightnessEma ??= brightness;
     final jumped = (brightness - _brightnessEma!).abs() > _cfg.brightnessJump;
-    _brightnessEma = _brightnessEma! + _cfg.brightnessEmaAlpha * (brightness - _brightnessEma!);
+    _brightnessEma =
+        _brightnessEma! +
+        _cfg.brightnessEmaAlpha * (brightness - _brightnessEma!);
 
     // 마스크는 신뢰도와 무관하게 계산 (디버그 뷰 표시용과 동일한 순서 유지).
     final redMask = _mask(hsv, w, h, _cfg.hsvRed);
@@ -130,11 +149,19 @@ class ColorDetector {
       raw = rawGreen;
     } else {
       raw = rawNone;
-      final oversized = red.areaRatio > green.areaRatio ? red.areaRatio : green.areaRatio;
+      final oversized = red.areaRatio > green.areaRatio
+          ? red.areaRatio
+          : green.areaRatio;
       reason = oversized > _cfg.maxAreaRatio ? 'blob_too_large' : 'no_blob';
     }
 
     _lastRaw = raw;
-    return FrameResult(raw: raw, red: red, green: green, brightness: brightness, reason: reason);
+    return FrameResult(
+      raw: raw,
+      red: red,
+      green: green,
+      brightness: brightness,
+      reason: reason,
+    );
   }
 }

@@ -47,7 +47,8 @@ String _normalizePattern(Set<String> segs) {
 
 // 패턴 테이블을 정렬 키로 재색인 (digits.py _PATTERNS_SORTED).
 final Map<String, int> _patternsSorted = {
-  for (final e in kDigitPatterns.entries) _normalizePattern(e.key.split('').toSet()): e.value,
+  for (final e in kDigitPatterns.entries)
+    _normalizePattern(e.key.split('').toSet()): e.value,
 };
 
 /// 1채널 마스크(값 0 또는 255) — width*height, 행 우선. cv2 단일채널 Mat 대응.

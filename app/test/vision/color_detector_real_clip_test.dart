@@ -33,9 +33,12 @@ class _Fixture {
 }
 
 _Fixture _loadFixture() {
-  final meta = jsonDecode(_fixture('real_signal_roi.json').readAsStringSync())
-      as Map<String, dynamic>;
-  final bytes = Uint8List.fromList(_fixture('real_signal_roi.bgr').readAsBytesSync());
+  final meta =
+      jsonDecode(_fixture('real_signal_roi.json').readAsStringSync())
+          as Map<String, dynamic>;
+  final bytes = Uint8List.fromList(
+    _fixture('real_signal_roi.bgr').readAsBytesSync(),
+  );
   final w = meta['width'] as int, h = meta['height'] as int;
   return _Fixture(
     RoiImage(w, h, bytes),
@@ -57,23 +60,32 @@ void main() {
     expect(f.pythonRef['green_valid'], isTrue);
   });
 
-  test('실제 보행등 초록 프레임 → raw GREEN, green.valid (Python detector.py와 같은 판정)', () {
-    final f = _loadFixture();
-    final d = ColorDetector(const DetectorConfig.defaults());
-    final r = d.detect(f.roi);
-    expect(r.raw, rawGreen, reason: 'reason=${r.reason} green=${r.green.areaRatio}');
-    expect(r.green.valid, isTrue);
-    expect(r.reason, '');
-    expect(r.red.valid, isFalse);
-  });
+  test(
+    '실제 보행등 초록 프레임 → raw GREEN, green.valid (Python detector.py와 같은 판정)',
+    () {
+      final f = _loadFixture();
+      final d = ColorDetector(const DetectorConfig.defaults());
+      final r = d.detect(f.roi);
+      expect(
+        r.raw,
+        rawGreen,
+        reason: 'reason=${r.reason} green=${r.green.areaRatio}',
+      );
+      expect(r.green.valid, isTrue);
+      expect(r.reason, '');
+      expect(r.red.valid, isFalse);
+    },
+  );
 
   test('초록 면적·밝기가 Python 기준값과 일치 (블러 5x5 포함한 경로 재현)', () {
     final f = _loadFixture();
     final r = ColorDetector(const DetectorConfig.defaults()).detect(f.roi);
     // 블러 없이는 초록 blob 면적이 Python의 절반 수준(1.5% vs 2.4%)으로 떨어진다.
     // 경계추적·형태학 미세차만 허용(±0.2%p).
-    expect(r.green.areaRatio,
-        closeTo(f.pythonRef['green_area_ratio'] as double, 0.002));
+    expect(
+      r.green.areaRatio,
+      closeTo(f.pythonRef['green_area_ratio'] as double, 0.002),
+    );
     // 블러가 OpenCV와 수치 동일하고 V=max(B,G,R)이므로 밝기 평균은 거의 정확히 같아야 한다.
     expect(r.brightness, closeTo(f.pythonRef['brightness'] as double, 0.05));
   });

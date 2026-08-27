@@ -88,7 +88,8 @@ RoiImage _gaussianBlur(RoiImage src, List<int> weights) {
 }
 
 /// cv2.GaussianBlur(roi_bgr, (5,5), 0) — detector.py ColorDetector.detect 가 HSV 변환 직전에 쓴다.
-RoiImage gaussianBlur5x5(RoiImage src) => _gaussianBlur(src, const [1, 4, 6, 4, 1]);
+RoiImage gaussianBlur5x5(RoiImage src) =>
+    _gaussianBlur(src, const [1, 4, 6, 4, 1]);
 
 /// cv2.GaussianBlur(roi_bgr, (3,3), 0) — digits.py DigitReader._mask 가 HSV 변환 직전에 쓴다.
 RoiImage gaussianBlur3x3(RoiImage src) => _gaussianBlur(src, const [1, 2, 1]);
@@ -99,9 +100,12 @@ Uint8List inRangeHsv(Uint8List hsv, int n, List<HsvRange> ranges) {
   for (var i = 0; i < n; i++) {
     final h = hsv[i * 3], s = hsv[i * 3 + 1], v = hsv[i * 3 + 2];
     for (final r in ranges) {
-      if (h >= r.lower[0] && h <= r.upper[0] &&
-          s >= r.lower[1] && s <= r.upper[1] &&
-          v >= r.lower[2] && v <= r.upper[2]) {
+      if (h >= r.lower[0] &&
+          h <= r.upper[0] &&
+          s >= r.lower[1] &&
+          s <= r.upper[1] &&
+          v >= r.lower[2] &&
+          v <= r.upper[2]) {
         out[i] = 255;
         break;
       }
@@ -141,9 +145,13 @@ Uint8List _morph(Uint8List mask, int w, int h, int k, bool dilateOp) {
           final inside = ny >= 0 && ny < h && nx >= 0 && nx < w;
           final val = inside ? mask[ny * w + nx] : 0;
           if (dilateOp) {
-            if (val == 255) { result = 255; }
+            if (val == 255) {
+              result = 255;
+            }
           } else {
-            if (val != 255) { result = 0; }
+            if (val != 255) {
+              result = 0;
+            }
           }
         }
       }
