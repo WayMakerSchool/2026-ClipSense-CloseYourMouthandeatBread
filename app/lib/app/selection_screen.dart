@@ -1,5 +1,8 @@
 /// GPS로 최근접 교차로를 자동 선택하고, 방향을 사용자가 큰버튼 목록에서 고른다.
-/// GPS 실패·근처 없음은 정직하게 안내(추측 금지). 방향 선택 후 GuidanceScreen으로.
+/// GPS 실패·근처 없음은 정직하게 안내(추측 금지)하되, 교차로를 직접 고를 수 있는
+/// 큰버튼 목록을 함께 준다(GPS 없는 iPad Wi-Fi 모델·실내 리허설·반경 100m 밖).
+/// 자동 선택은 하지 않는다 — 사용자의 명시적 탭만 진행한다. 방향 선택 후
+/// GuidanceScreen으로.
 library;
 
 import 'package:flutter/material.dart';
@@ -13,6 +16,9 @@ import 'intersection_finder.dart';
 import 'location_service.dart';
 
 enum _Phase { locating, chooseDirection, denied, unavailable, notFound }
+
+/// 위치 실패 화면에서 읽어 주는 직접 선택 안내(liveRegion, 글자 그대로 유지).
+const String _manualHint = '위치를 찾지 못했습니다. 교차로를 직접 고를 수 있습니다.';
 
 class SelectionScreen extends StatefulWidget {
   final LocationService location;
@@ -64,6 +70,15 @@ class _SelectionScreenState extends State<SelectionScreen> {
     }
   }
 
+  /// 사용자가 목록에서 교차로를 직접 골랐을 때. GPS로 찾았을 때와 같은 상태로
+  /// 전환해 같은 방향 목록·_choose 경로를 탄다. 사용자 탭으로만 호출된다.
+  void _selectManually(Intersection it) {
+    setState(() {
+      _found = it;
+      _phase = _Phase.chooseDirection;
+    });
+  }
+
   void _choose(Intersection it, Direction dir) {
     // 저시력·운동장애 사용자의 빠른 연속 탭(더블탭)이 GuidanceScreen을 두 번
     // push해 GuidanceController(및 feedbackFactory())가 중복 생성되는 것을 막는다.
@@ -100,11 +115,11 @@ class _SelectionScreenState extends State<SelectionScreen> {
       case _Phase.locating:
         return _message('위치를 확인하는 중입니다');
       case _Phase.denied:
-        return _messageWithRetry('위치 권한이 필요합니다');
+        return _failure('위치 권한이 필요합니다');
       case _Phase.unavailable:
-        return _messageWithRetry('위치를 확인할 수 없습니다');
+        return _failure('위치를 확인할 수 없습니다');
       case _Phase.notFound:
-        return _messageWithRetry('근처 교차로를 찾을 수 없습니다');
+        return _failure('근처 교차로를 찾을 수 없습니다');
       case _Phase.chooseDirection:
         return _directionList(_found!);
     }
@@ -164,12 +179,14 @@ class _SelectionScreenState extends State<SelectionScreen> {
     ),
   );
 
-  Widget _messageWithRetry(String text) => Column(
-    mainAxisAlignment: MainAxisAlignment.center,
+  /// 위치 실패(권한 거부·위치 불가·근처 없음). 이유를 정직하게 말하고, 다시 시도
+  /// 아래에 교차로 직접 선택 목록을 준다. 목록은 사용자가 탭해야만 진행한다.
+  /// 전체를 ListView로 두어 작은 화면·큰 글자 설정에서도 넘치지 않게 한다.
+  Widget _failure(String reason) => ListView(
     children: [
-      Expanded(child: _message(text)),
+      _message(reason),
       Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         child: _bigButton(
           label: '다시 시도',
           onTap: _locate,
@@ -179,6 +196,46 @@ class _SelectionScreenState extends State<SelectionScreen> {
           verticalPadding: 28,
         ),
       ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+        child: Semantics(
+          liveRegion: true,
+          child: const Text(
+            _manualHint,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFFDDDDDD),
+            ),
+          ),
+        ),
+      ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+        child: Semantics(
+          header: true,
+          child: const Text(
+            '교차로 직접 선택',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+            ),
+          ),
+        ),
+      ),
+      for (final it in widget.intersections)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: _bigButton(
+            label: it.name,
+            onTap: () => _selectManually(it),
+            color: const Color(0xFF0A5FA8),
+            verticalPadding: 24,
+          ),
+        ),
     ],
   );
 

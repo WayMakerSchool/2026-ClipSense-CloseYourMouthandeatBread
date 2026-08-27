@@ -173,6 +173,78 @@ void main() {
     expect(vision.stopCalls, 1);
   });
 
+  // ─── GPS 실패 시 교차로 직접 선택 ─────────────────────────────────────
+  // iPad Wi-Fi 모델(GPS 없음)·실내 리허설·교차로 반경 100m 밖에서도 안내
+  // 화면에 들어갈 수 있어야 한다. 단, 추측 금지: 자동 선택이 아니라 사용자의
+  // 명시적 탭이어야 한다.
+
+  const manualHint = '위치를 찾지 못했습니다. 교차로를 직접 고를 수 있습니다.';
+
+  Widget wrapWithVision(LocationResult result, VisionSource vision) =>
+      MaterialApp(
+        home: SelectionScreen(
+          location: FakeLocationService(result),
+          feedbackFactory: fakeFeedback,
+          visionFactory: () => vision,
+          intersections: _testList,
+        ),
+      );
+
+  final failures = <(String, LocationResult)>[
+    ('권한 거부', LocationDenied()),
+    ('위치 불가', LocationUnavailable()),
+    ('근처 교차로 없음', LocationOk(35.1796, 129.0756)), // 부산 → 반경 밖
+  ];
+
+  for (final (name, result) in failures) {
+    testWidgets('$name → 직접 선택 안내 + 교차로 목록 표시(자동 선택 없음)', (tester) async {
+      await tester.pumpWidget(wrap(result));
+      await tester.pumpAndSettle();
+      expect(find.text(manualHint), findsOneWidget);
+      expect(find.text('교차로 직접 선택'), findsOneWidget);
+      expect(find.text('테스트 교차로 A'), findsOneWidget);
+      // 다시 시도는 그대로 남아 있어야 한다.
+      expect(find.text('다시 시도'), findsOneWidget);
+      // 방향 버튼은 아직 없어야 한다(사용자가 고르기 전 자동 진입 금지).
+      expect(find.text('북쪽 횡단보도'), findsNothing);
+    });
+
+    testWidgets('$name → 교차로 탭 → 방향 목록(GPS 성공과 동일 화면)', (tester) async {
+      await tester.pumpWidget(wrap(result));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('테스트 교차로 A'));
+      await tester.pumpAndSettle();
+      expect(find.text('북쪽 횡단보도'), findsOneWidget);
+      expect(find.text('남쪽 횡단보도'), findsOneWidget);
+      expect(find.textContaining('건널 방향을 선택하세요'), findsOneWidget);
+      // 직접 선택 목록은 사라진다.
+      expect(find.text(manualHint), findsNothing);
+    });
+  }
+
+  testWidgets('직접 선택 안내 문구는 liveRegion', (tester) async {
+    await tester.pumpWidget(wrap(LocationUnavailable()));
+    await tester.pumpAndSettle();
+    final sem = tester.getSemantics(find.text(manualHint));
+    expect(sem.flagsCollection.isLiveRegion, isTrue);
+  });
+
+  testWidgets('직접 선택한 교차로의 방향 탭 → GuidanceScreen push', (tester) async {
+    final vision = FakeVisionSource();
+    await tester.pumpWidget(wrapWithVision(LocationDenied(), vision));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('테스트 교차로 A'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('남쪽 횡단보도'));
+    await tester.pumpAndSettle();
+    expect(find.byType(GuidanceScreen), findsOneWidget);
+
+    Navigator.of(tester.element(find.byType(GuidanceScreen))).pop();
+    await tester.pumpAndSettle();
+    expect(vision.stopCalls, 1);
+  });
+
   // ─── 스크린리더(TalkBack/VoiceOver) 두 번 탭 = SemanticsAction.tap ────
   // Semantics(excludeSemantics: true) 아래의 GestureDetector는 접근성 트리에서
   // 빠지므로, Semantics 노드 자체에 onTap이 없으면 두 번 탭이 아무 일도 안 한다.
@@ -212,6 +284,28 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+
+    final dir = find.semantics.byLabel('북쪽 횡단보도');
+    expect(dir, findsOne);
+    expect(dir.evaluate().single.flagsCollection.isButton, isTrue);
+    tester.semantics.performAction(dir, SemanticsAction.tap);
+    await tester.pumpAndSettle();
+    expect(find.byType(GuidanceScreen), findsOneWidget);
+  });
+
+  testWidgets('교차로·방향 버튼 Semantics tap 액션 → GuidanceScreen까지 진입', (
+    tester,
+  ) async {
+    final vision = FakeVisionSource();
+    await tester.pumpWidget(wrapWithVision(LocationUnavailable(), vision));
+    await tester.pumpAndSettle();
+
+    final manual = find.semantics.byLabel('테스트 교차로 A');
+    expect(manual, findsOne);
+    expect(manual.evaluate().single.flagsCollection.isButton, isTrue);
+    tester.semantics.performAction(manual, SemanticsAction.tap);
+    await tester.pumpAndSettle();
+    expect(find.text('북쪽 횡단보도'), findsOneWidget);
 
     final dir = find.semantics.byLabel('북쪽 횡단보도');
     expect(dir, findsOne);
