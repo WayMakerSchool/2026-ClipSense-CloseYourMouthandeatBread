@@ -9,15 +9,21 @@ venv/
 *.mov
 *.avi
 
-# 생성물 (음성/합성 테스트 영상은 스크립트로 재생성)
-assets/voice/
+# 생성물 (검증된 WAV 4개는 오프라인 데모용 릴리스 자산으로 포함)
+assets/voice/*.mp3
 data/*.mp4
 
 # API 키·비밀 (절대 커밋 금지)
 .env
 *.key
+*.jks
+*.keystore
 secrets.json
 config.local.json
+app/android/key.properties
+
+# 공모전 신청 원본(개인정보·문서 메타데이터가 있을 수 있어 공개 저장소에서 제외)
+임베디드 공모전/
 
 # OS/에디터
 .DS_Store
