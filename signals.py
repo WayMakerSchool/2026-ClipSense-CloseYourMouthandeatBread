@@ -4,6 +4,8 @@ signal_api / vision_adapter / judge 세 모듈이 이 표현으로만 대화한�
 색 enum은 4-값 고정이며, UNKNOWN은 "모른다"는 1급 상태다 (추측 금지).
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 # 신호 색 (4-값 고정)

@@ -13,6 +13,8 @@
 사용법: python scripts/test_digits_robust.py
 """
 
+from __future__ import annotations
+
 import json
 import sys
 from pathlib import Path

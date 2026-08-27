@@ -13,6 +13,8 @@ afplay가 없는 플랫폼(Windows 등)에서는 pygame으로 폴백.
 테스트: python voice.py --test
 """
 
+from __future__ import annotations
+
 import argparse
 import os
 import shutil

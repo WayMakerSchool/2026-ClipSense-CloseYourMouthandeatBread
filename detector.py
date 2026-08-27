@@ -7,6 +7,8 @@
   (RED / GREEN / GREEN_BLINK / UNKNOWN) 및 상태 전환 이벤트
 """
 
+from __future__ import annotations
+
 from collections import deque
 from dataclasses import dataclass, field
 

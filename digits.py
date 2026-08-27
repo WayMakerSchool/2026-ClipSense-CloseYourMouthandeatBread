@@ -9,6 +9,8 @@
 stable 값이 된다. 어설픈 추측은 하지 않는다.
 """
 
+from __future__ import annotations
+
 from collections import Counter, deque
 
 import cv2

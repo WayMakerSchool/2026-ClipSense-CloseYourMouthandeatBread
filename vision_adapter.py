@@ -4,6 +4,8 @@
 GREEN_BLINK(초록 점멸)는 CLEARANCE로 매핑한다.
 """
 
+from __future__ import annotations
+
 from signals import (SignalReading, GREEN, RED, CLEARANCE, UNKNOWN, SRC_VISION)
 from detector import (STATE_RED, STATE_GREEN, STATE_GREEN_BLINK, STATE_UNKNOWN)
 
