@@ -99,6 +99,15 @@ check("기본: API None이면 비전 초록이어도 WAIT",
 check("opt-in: 비전 단독 초록 → WALK (allow_single_source=True)",
       decide(None, vis(GREEN, 30), allow_single_source=True) == WALK)
 
+# --- 잔여시간 출처 정책: API 잔여가 기준, 카메라 숫자는 거부권만 ---
+# (7세그 판독은 오독 가능성이 있어 단독 근거로 쓰지 않음. 더 짧으면 WAIT로만 작용)
+check("정책: API 잔여 없음이면 카메라 숫자만으로 WALK 하지 않는다",
+      decide(api(GREEN, None), vis(GREEN, 20)) == WAIT)
+check("정책: API 잔여 충분해도 카메라 숫자가 더 짧으면 WAIT",
+      decide(api(GREEN, 20), vis(GREEN, 3)) == WAIT)
+check("정책: API 잔여 충분·카메라 숫자 없음 → WALK",
+      decide(api(GREEN, 20), vis(GREEN, None)) == WALK)
+
 print("=" * 50)
 if FAILURES:
     print(f"FAIL {len(FAILURES)}건: {FAILURES}")

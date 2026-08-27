@@ -3,6 +3,8 @@
 /// 안전 핵심 (Fail-Safe):
 /// - walk는 두 소스가 모두 green + 잔여시간 충분 + 둘 다 fresh일 때만.
 /// - 하나라도 불일치/부족/stale → wait.
+/// - 잔여시간 기준은 API. 카메라 숫자(7세그)는 거부권만 — API 잔여가 없으면
+///   카메라 숫자가 충분해도 wait, 카메라 숫자가 더 짧으면 wait.
 /// - 두 소스 모두 unknown 또는 입력 없음 → Decision.unknown.
 /// - 기본(allowSingleSource=false)은 엄격: 두 소스 모두 green일 때만 walk.
 ///   한쪽이 unknown/stale/없음이라 단일 소스만 가용하면 무조건 wait
@@ -109,6 +111,14 @@ DecisionResult evaluate(
     final apiColor = api!.color;
     final visionColor = vision!.color;
     if (apiColor == SignalColor.green && visionColor == SignalColor.green) {
+      // 잔여시간의 기준은 API. 카메라 7세그 판독은 오독 가능성이 있어
+      // 단독 근거로 쓰지 않고, API보다 짧을 때만 wait로 작용한다(거부권).
+      if (api.remainSec == null) {
+        return const DecisionResult(
+          Decision.wait,
+          DecisionReason.remainingUnavailable,
+        );
+      }
       final remainReason = _remainReason([api, vision], needSec);
       return DecisionResult(
         remainReason == DecisionReason.ready ? Decision.walk : Decision.wait,

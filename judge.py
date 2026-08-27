@@ -74,7 +74,10 @@ def decide(api: SignalReading | None, vision: SignalReading | None, *,
     # 두 소스 다 가용: AND 규칙
     if api_ok and vis_ok:
         both_green = api.color == GREEN and vision.color == GREEN
-        if both_green and _remain_ok([api, vision], need_sec):
+        # 잔여시간의 기준은 API. 카메라 7세그 판독은 오독 가능성이 있어
+        # 단독 근거로 쓰지 않고, API보다 짧을 때만 WAIT로 작용한다(거부권).
+        if (both_green and api.remain_sec is not None
+                and _remain_ok([api, vision], need_sec)):
             return WALK
         return WAIT
 

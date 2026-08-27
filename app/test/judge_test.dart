@@ -200,4 +200,33 @@ void main() {
       expect(result.reason, DecisionReason.sourceUnavailable);
     });
   });
+
+  group('잔여시간 출처 정책 (카메라 숫자는 거부권만)', () {
+    test('API 잔여 없음이면 카메라 숫자만으로 walk 하지 않는다', () {
+      final result = evaluate(
+        api(SignalColor.green, remain: null),
+        vis(SignalColor.green, remain: 20),
+      );
+      expect(result.decision, Decision.wait);
+      expect(result.reason, DecisionReason.remainingUnavailable);
+    });
+
+    test('API 잔여 충분해도 카메라 숫자가 더 짧으면 wait', () {
+      final result = evaluate(
+        api(SignalColor.green, remain: 20),
+        vis(SignalColor.green, remain: 3),
+      );
+      expect(result.decision, Decision.wait);
+      expect(result.reason, DecisionReason.remainingInsufficient);
+    });
+
+    test('API 잔여 충분·카메라 숫자 없음 → walk', () {
+      final result = evaluate(
+        api(SignalColor.green, remain: 20),
+        vis(SignalColor.green, remain: null),
+      );
+      expect(result.decision, Decision.walk);
+      expect(result.reason, DecisionReason.ready);
+    });
+  });
 }
