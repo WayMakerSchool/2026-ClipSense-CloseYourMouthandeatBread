@@ -173,8 +173,11 @@ GuidanceController({
 
 - ROI 자동(신호등 찾기) — 지금 중앙 고정. 다음 조각.
 - 실환경 HSV 튜닝(config.json 값은 시작점) — 실기기 촬영으로.
-- 블러 재활성화(gaussianBlur) — vision 조각에서 생략했으니 여기서 추가 검토(실프레임은
-  노이즈 있어 블러 필요할 수 있음).
+- ~~블러 재활성화(gaussianBlur)~~ — **완료(2026-08-27)**: `image_ops.gaussianBlur5x5/3x3`
+  (OpenCV `GaussianBlur((k,k),0)`와 픽셀 단위 동일, `scripts/gen_blur_expected.py`로 검증)을
+  detector.py/digits.py와 같은 위치(HSV 변환 직전)에 적용. 실제 서울 보행등 프레임 fixture
+  (`app/test/fixtures/real_signal_roi.*`, `color_detector_real_clip_test`)로 GREEN 판정 고정.
+  같은 실측 근거로 `kRoiFrac` 0.5→0.25.
 - 엄격 AND 체감 조정 — 실기기 인식률 측정 후.
 - 프레임 처리를 UI isolate 밖으로(성능) — 필요시.
 - 카메라 해상도·처리 주기(N) 튜닝 — 실기기 성능 보고.

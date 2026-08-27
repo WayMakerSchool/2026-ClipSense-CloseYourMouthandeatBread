@@ -14,7 +14,12 @@ const String kApiKey = String.fromEnvironment('TDATA_KEY');
 const bool kAllowSingleSource = false;
 
 /// 카메라 프레임 중앙에서 검출에 사용할 가로·세로 비율.
-const double kRoiFrac = 0.5;
+///
+/// 실측 근거(2026-08-27, 서울 보행등 근접 클립 1280x720): 중앙 50%에서는 초록 램프가
+/// ROI의 0.39%(블러 없음)~0.62%(블러)로 minAreaRatio 0.5% 경계에 걸려 판정이 흔들리지만,
+/// 25%(320x180)에서는 2.4%로 여유가 있고 처리 픽셀 수도 1/4이다. 사용자는 신호등을
+/// 화면 중앙에 두도록 안내받으므로 좁은 ROI가 오히려 주변 초록(간판·나무)도 덜 잡는다.
+const double kRoiFrac = 0.25;
 
 /// 실시간 스트림 부하를 줄이기 위해 처리할 프레임 간격(첫 프레임부터 처리).
 const int kCameraProcessEveryN = 3;
