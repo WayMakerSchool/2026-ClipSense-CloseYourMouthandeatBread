@@ -32,6 +32,21 @@ void main() {
     );
   });
 
+  // 한쪽 소스 불가 — 지정 문구(마침표 포함)가 글자 그대로 들어간다.
+  test('wait + 카메라 불가: 신호등을 향하라는 안내', () {
+    expect(
+      speechText(Decision.wait, reason: DecisionReason.cameraUnavailable),
+      '카메라가 신호등을 찾지 못했습니다. 신호등을 향해 주세요. 기다리세요',
+    );
+  });
+
+  test('wait + API 불가: 신호 정보를 아직 못 받음', () {
+    expect(
+      speechText(Decision.wait, reason: DecisionReason.apiUnavailable),
+      '신호 정보를 아직 받지 못했습니다. 기다리세요',
+    );
+  });
+
   test('API 키 누락은 일반 신호 장애와 구분한다', () {
     expect(
       speechText(Decision.unknown, reason: DecisionReason.apiKeyMissing),

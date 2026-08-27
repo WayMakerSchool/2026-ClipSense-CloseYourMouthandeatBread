@@ -61,13 +61,13 @@ void main() {
     final s = FakeSpeech();
     final h = FakeHaptic();
     final c = FeedbackController(s, h);
-    await c.onDecision(Decision.wait, reason: DecisionReason.sourceUnavailable);
+    await c.onDecision(Decision.wait, reason: DecisionReason.cameraUnavailable);
     await c.onDecision(
       Decision.wait,
       reason: DecisionReason.remainingInsufficient,
     );
     expect(s.spoken, [
-      'API 또는 카메라 신호를 확인하는 중입니다. 기다리세요',
+      '카메라가 신호등을 찾지 못했습니다. 신호등을 향해 주세요. 기다리세요',
       '안전하게 건널 시간이 부족합니다. 기다리세요',
     ]);
     expect(h.played, [Decision.wait, Decision.wait]);

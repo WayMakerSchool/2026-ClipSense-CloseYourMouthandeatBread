@@ -9,8 +9,9 @@ import 'package:clip_sense/app/guidance_controller.dart';
 import 'package:clip_sense/app/guidance_screen.dart';
 
 class FakeSpeech implements SpeechOutput {
+  final List<String> spoken = [];
   @override
-  Future<void> speak(String text) async {}
+  Future<void> speak(String text) async => spoken.add(text);
 }
 
 class FakeHaptic implements HapticOutput {
@@ -18,14 +19,18 @@ class FakeHaptic implements HapticOutput {
   Future<void> play(Decision d) async {}
 }
 
-GuidanceController makeController(SignalReading reading) {
+GuidanceController makeController(
+  SignalReading reading, {
+  FakeSpeech? speech,
+  bool allowSingleSource = true,
+}) {
   return GuidanceController(
-    feedback: FeedbackController(FakeSpeech(), FakeHaptic()),
+    feedback: FeedbackController(speech ?? FakeSpeech(), FakeHaptic()),
     itstId: '1850',
     direction: 'st',
     // 이 파일은 화면 표현만 검증한다. 엄격 AND 배선은 controller 테스트에서
-    // FakeVisionSource로 별도 검증한다.
-    allowSingleSource: true,
+    // FakeVisionSource로 별도 검증한다(카메라 미인식 문구 테스트만 엄격 모드).
+    allowSingleSource: allowSingleSource,
     fetch: (itstId, direction, apiKey, {required nowMs}) async => reading,
   );
 }
@@ -143,6 +148,38 @@ void main() {
 
     final liveLabel = tester.getSemantics(liveRegionSemantics).label;
     expect(liveLabel, contains('기다리세요'));
+    c.dispose();
+  });
+
+  // 실기기의 가장 흔한 wait: API는 오는데 카메라가 신호등을 못 찾음. 화면·라이브
+  // 리전·음성 모두에 지정 문구 "카메라가 신호등을 찾지 못했습니다. 신호등을 향해
+  // 주세요."가 글자 그대로(마침표 포함, ".." 없이) 들어가야 한다.
+  testWidgets('엄격 모드·카메라 판독 없음 → "신호등을 향해 주세요" 이유 표시+음성', (tester) async {
+    final speech = FakeSpeech();
+    final c = makeController(
+      const SignalReading(
+        SignalColor.green,
+        15.0,
+        SignalSource.api,
+        freshMs: 0,
+      ),
+      speech: speech,
+      allowSingleSource:
+          false, // 카메라 미주입(visionStub=unknown) → cameraUnavailable
+    );
+    await tester.pumpWidget(MaterialApp(home: GuidanceScreen(controller: c)));
+    await c.tickOnce();
+    await tester.pump();
+
+    expect(c.decision, Decision.wait);
+    expect(c.reason, DecisionReason.cameraUnavailable);
+    expect(find.textContaining('건너세요'), findsNothing);
+    expect(find.text('카메라가 신호등을 찾지 못했습니다. 신호등을 향해 주세요'), findsOneWidget);
+    expect(
+      tester.getSemantics(liveRegionSemantics).label,
+      '기다리세요. 카메라가 신호등을 찾지 못했습니다. 신호등을 향해 주세요.',
+    );
+    expect(speech.spoken, ['카메라가 신호등을 찾지 못했습니다. 신호등을 향해 주세요. 기다리세요']);
     c.dispose();
   });
 

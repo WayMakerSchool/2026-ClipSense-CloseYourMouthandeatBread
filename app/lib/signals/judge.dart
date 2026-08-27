@@ -21,7 +21,14 @@ enum Decision { walk, wait, unknown }
 enum DecisionReason {
   ready,
   sourcesUnavailable,
-  sourceUnavailable,
+
+  /// API는 쓸 수 있는데 카메라 판독이 없음(미인식·stale·미주입). 사용자가
+  /// 취할 행동은 "신호등을 향하기".
+  cameraUnavailable,
+
+  /// 카메라는 쓸 수 있는데 API 판독이 없음(미응답·unknown·stale). 사용자가
+  /// 취할 행동은 없고 그냥 기다린다.
+  apiUnavailable,
   apiKeyMissing,
   redSignal,
   clearance,
@@ -44,8 +51,14 @@ String decisionReasonText(DecisionReason reason) {
       return 'API와 카메라가 모두 초록입니다';
     case DecisionReason.sourcesUnavailable:
       return 'API와 카메라 신호를 확인할 수 없습니다';
-    case DecisionReason.sourceUnavailable:
-      return 'API 또는 카메라 신호를 확인하는 중입니다';
+    // 이유 문구는 마침표 없이 둔다 — 화면('기다리세요. {이유}.')과 음성
+    // ('{이유}. 기다리세요')이 조합할 때 마침표를 붙이므로, 지정 문구
+    // "카메라가 신호등을 찾지 못했습니다. 신호등을 향해 주세요."가 글자 그대로
+    // 들어간다(끝에 마침표를 넣으면 ".."가 된다).
+    case DecisionReason.cameraUnavailable:
+      return '카메라가 신호등을 찾지 못했습니다. 신호등을 향해 주세요';
+    case DecisionReason.apiUnavailable:
+      return '신호 정보를 아직 받지 못했습니다';
     case DecisionReason.apiKeyMissing:
       return 'T-Data API 키가 설정되지 않았습니다';
     case DecisionReason.redSignal:
@@ -134,12 +147,13 @@ DecisionResult evaluate(
     return const DecisionResult(Decision.wait, DecisionReason.redSignal);
   }
 
-  // 단일 소스만 가용
+  // 단일 소스만 가용 → 엄격 모드면 wait. 어느 쪽이 빠졌는지를 이유에 남긴다
+  // — 카메라 미인식이면 "신호등을 향하라", API 미응답이면 "기다리라"로
+  // 사용자가 취할 행동이 다르다(결정은 둘 다 wait, 안전 정책 불변).
   if (!allowSingleSource) {
-    return const DecisionResult(
-      Decision.wait,
-      DecisionReason.sourceUnavailable,
-    );
+    return apiOk
+        ? const DecisionResult(Decision.wait, DecisionReason.cameraUnavailable)
+        : const DecisionResult(Decision.wait, DecisionReason.apiUnavailable);
   }
   final single = apiOk ? api! : vision!;
   if (single.color == SignalColor.green) {
