@@ -2,15 +2,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:clip_sense/signals/signal_reading.dart';
 import 'package:clip_sense/signals/judge.dart';
 
-SignalReading api(SignalColor color, {double? remain = 30.0, int fresh = 100}) =>
-    SignalReading(color, remain, SignalSource.api, freshMs: fresh);
+SignalReading api(
+  SignalColor color, {
+  double? remain = 30.0,
+  int fresh = 100,
+}) => SignalReading(color, remain, SignalSource.api, freshMs: fresh);
 SignalReading vis(SignalColor color, {double? remain, int fresh = 100}) =>
     SignalReading(color, remain, SignalSource.vision, freshMs: fresh);
 
 void main() {
   test('둘 다 초록 → walk', () {
-    expect(decide(api(SignalColor.green, remain: 30), vis(SignalColor.green)),
-        Decision.walk);
+    expect(
+      decide(api(SignalColor.green, remain: 30), vis(SignalColor.green)),
+      Decision.walk,
+    );
   });
 
   test('API초록·비전빨강 → wait', () {
@@ -20,12 +25,16 @@ void main() {
     expect(decide(api(SignalColor.red), vis(SignalColor.green)), Decision.wait);
   });
   test('API초록·비전점멸 → wait', () {
-    expect(decide(api(SignalColor.green), vis(SignalColor.clearance)),
-        Decision.wait);
+    expect(
+      decide(api(SignalColor.green), vis(SignalColor.clearance)),
+      Decision.wait,
+    );
   });
   test('API점멸·비전초록 → wait', () {
-    expect(decide(api(SignalColor.clearance), vis(SignalColor.green)),
-        Decision.wait);
+    expect(
+      decide(api(SignalColor.clearance), vis(SignalColor.green)),
+      Decision.wait,
+    );
   });
 
   test('둘 다 빨강 → wait', () {
@@ -34,51 +43,70 @@ void main() {
 
   test('잔여 부족 → wait', () {
     expect(
-        decide(api(SignalColor.green, remain: 3.0), vis(SignalColor.green),
-            needSec: 7.0),
-        Decision.wait);
+      decide(
+        api(SignalColor.green, remain: 3.0),
+        vis(SignalColor.green),
+        needSec: 7.0,
+      ),
+      Decision.wait,
+    );
   });
 
   test('잔여 정보 없음 → wait', () {
     expect(
-        decide(api(SignalColor.green, remain: null),
-            vis(SignalColor.green, remain: null),
-            needSec: 7.0),
-        Decision.wait);
+      decide(
+        api(SignalColor.green, remain: null),
+        vis(SignalColor.green, remain: null),
+        needSec: 7.0,
+      ),
+      Decision.wait,
+    );
   });
 
   test('한쪽 stale → wait', () {
     expect(
-        decide(api(SignalColor.green, remain: 30, fresh: 5000),
-            vis(SignalColor.green),
-            staleMs: 2000),
-        Decision.wait);
+      decide(
+        api(SignalColor.green, remain: 30, fresh: 5000),
+        vis(SignalColor.green),
+        staleMs: 2000,
+      ),
+      Decision.wait,
+    );
   });
 
   test('둘 다 unknown → unknown', () {
     expect(
-        decide(api(SignalColor.unknown, remain: null),
-            vis(SignalColor.unknown, remain: null)),
-        Decision.unknown);
+      decide(
+        api(SignalColor.unknown, remain: null),
+        vis(SignalColor.unknown, remain: null),
+      ),
+      Decision.unknown,
+    );
   });
 
   test('비전 단독 초록 → walk (allowSingleSource)', () {
     expect(
-        decide(null, vis(SignalColor.green, remain: 30),
-            allowSingleSource: true),
-        Decision.walk);
+      decide(null, vis(SignalColor.green, remain: 30), allowSingleSource: true),
+      Decision.walk,
+    );
   });
 
   test('단일 소스 비허용 → wait', () {
     expect(
-        decide(null, vis(SignalColor.green, remain: 30),
-            allowSingleSource: false),
-        Decision.wait);
+      decide(
+        null,
+        vis(SignalColor.green, remain: 30),
+        allowSingleSource: false,
+      ),
+      Decision.wait,
+    );
   });
 
   test('비전 단독 빨강 → wait', () {
-    expect(decide(null, vis(SignalColor.red), allowSingleSource: true),
-        Decision.wait);
+    expect(
+      decide(null, vis(SignalColor.red), allowSingleSource: true),
+      Decision.wait,
+    );
   });
 
   test('둘 다 null → unknown', () {
@@ -87,31 +115,89 @@ void main() {
 
   test('단일 소스 초록·잔여없음 → wait', () {
     expect(
-        decide(null, vis(SignalColor.green, remain: null),
-            allowSingleSource: true),
-        Decision.wait);
+      decide(
+        null,
+        vis(SignalColor.green, remain: null),
+        allowSingleSource: true,
+      ),
+      Decision.wait,
+    );
   });
 
   // 안전 정책(사용자 확정): 기본 엄격 — 카메라 unknown이면 API 초록도 wait
   test('기본: 비전 unknown이면 API 초록이어도 wait', () {
     expect(
-        decide(api(SignalColor.green, remain: 30),
-            vis(SignalColor.unknown, remain: null)),
-        Decision.wait);
+      decide(
+        api(SignalColor.green, remain: 30),
+        vis(SignalColor.unknown, remain: null),
+      ),
+      Decision.wait,
+    );
   });
   test('기본: API unknown이면 비전 초록이어도 wait', () {
     expect(
-        decide(api(SignalColor.unknown, remain: null),
-            vis(SignalColor.green, remain: 30)),
-        Decision.wait);
+      decide(
+        api(SignalColor.unknown, remain: null),
+        vis(SignalColor.green, remain: 30),
+      ),
+      Decision.wait,
+    );
   });
   test('기본: 비전 stale이면 API 초록이어도 wait', () {
     expect(
-        decide(api(SignalColor.green, remain: 30),
-            vis(SignalColor.green, remain: 30, fresh: 5000)),
-        Decision.wait);
+      decide(
+        api(SignalColor.green, remain: 30),
+        vis(SignalColor.green, remain: 30, fresh: 5000),
+      ),
+      Decision.wait,
+    );
   });
   test('기본: API null이면 비전 초록이어도 wait', () {
     expect(decide(null, vis(SignalColor.green, remain: 30)), Decision.wait);
+  });
+
+  group('판정 근거', () {
+    test('둘 다 초록이지만 잔여 부족이면 이유를 보존한다', () {
+      final result = evaluate(
+        api(SignalColor.green, remain: 3),
+        vis(SignalColor.green),
+      );
+      expect(result.decision, Decision.wait);
+      expect(result.reason, DecisionReason.remainingInsufficient);
+    });
+
+    test('API와 비전 색이 다르면 불일치 이유다', () {
+      final result = evaluate(api(SignalColor.green), vis(SignalColor.red));
+      expect(result.decision, Decision.wait);
+      expect(result.reason, DecisionReason.conflict);
+    });
+
+    test('한 소스가 없고 엄격 모드면 소스 확인 중 이유다', () {
+      final result = evaluate(null, vis(SignalColor.green, remain: 30));
+      expect(result.decision, Decision.wait);
+      expect(result.reason, DecisionReason.sourceUnavailable);
+    });
+  });
+
+  group('비정상 수치 fail-safe', () {
+    test('NaN·Infinity·음수 잔여시간은 walk 근거가 아니다', () {
+      for (final malformed in [double.nan, double.infinity, -1.0]) {
+        final result = evaluate(
+          api(SignalColor.green, remain: malformed),
+          vis(SignalColor.green),
+        );
+        expect(result.decision, Decision.wait);
+        expect(result.reason, DecisionReason.remainingUnavailable);
+      }
+    });
+
+    test('음수 신선도는 사용할 수 없는 판정이다', () {
+      final result = evaluate(
+        api(SignalColor.green, remain: 30, fresh: -1),
+        vis(SignalColor.green, remain: 30),
+      );
+      expect(result.decision, Decision.wait);
+      expect(result.reason, DecisionReason.sourceUnavailable);
+    });
   });
 }

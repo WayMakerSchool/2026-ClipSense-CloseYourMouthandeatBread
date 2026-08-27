@@ -24,7 +24,7 @@ const Map<String, SignalColor> statusMap = {
 double? _toRemainSec(dynamic rawCs) {
   if (rawCs == null || rawCs == '') return null;
   final v = double.tryParse(rawCs.toString());
-  if (v == null) return null;
+  if (v == null || !v.isFinite || v < 0) return null;
   return double.parse((v / 10.0).toStringAsFixed(1));
 }
 
@@ -33,8 +33,13 @@ double? _toRemainSec(dynamic rawCs) {
 /// itstId가 주어지면 records 중 itstId 일치 첫 레코드만 사용(다른 교차로 신호
 /// 오독 방지). 일치 없으면 unknown. itstId가 null이면 records[0](하위호환).
 /// 미지 상태/stale/미래시각/신호 없음/빈 배열/itstId 불일치 → 전부 unknown.
-SignalReading parseReading(List records, String direction, int nowMs,
-    {int staleMs = 2000, String? itstId}) {
+SignalReading parseReading(
+  List records,
+  String direction,
+  int nowMs, {
+  int staleMs = 2000,
+  String? itstId,
+}) {
   if (records.isEmpty) {
     return const SignalReading(SignalColor.unknown, null, SignalSource.api);
   }
@@ -44,7 +49,8 @@ SignalReading parseReading(List records, String direction, int nowMs,
     rec = records[0] as Map;
   } else {
     final match = records.cast<Map>().where(
-        (r) => r['itstId']?.toString() == itstId.toString());
+      (r) => r['itstId']?.toString() == itstId.toString(),
+    );
     if (match.isEmpty) {
       return const SignalReading(SignalColor.unknown, null, SignalSource.api);
     }
@@ -61,7 +67,7 @@ SignalReading parseReading(List records, String direction, int nowMs,
     return SignalReading(SignalColor.unknown, null, SignalSource.api, raw: raw);
   }
   final trsmMs = double.tryParse(trsm.toString());
-  if (trsmMs == null) {
+  if (trsmMs == null || !trsmMs.isFinite) {
     return SignalReading(SignalColor.unknown, null, SignalSource.api, raw: raw);
   }
   final freshMs = (nowMs - trsmMs).toInt();
@@ -72,14 +78,24 @@ SignalReading parseReading(List records, String direction, int nowMs,
   }
   // stale → unknown (원문 보존)
   if (freshMs > staleMs) {
-    return SignalReading(SignalColor.unknown, null, SignalSource.api,
-        freshMs: freshMs, raw: raw);
+    return SignalReading(
+      SignalColor.unknown,
+      null,
+      SignalSource.api,
+      freshMs: freshMs,
+      raw: raw,
+    );
   }
 
   final color = statusMap[stat] ?? SignalColor.unknown;
   final remain = color != SignalColor.unknown ? _toRemainSec(rmdr) : null;
-  return SignalReading(color, remain, SignalSource.api,
-      freshMs: freshMs < 0 ? 0 : freshMs, raw: raw);
+  return SignalReading(
+    color,
+    remain,
+    SignalSource.api,
+    freshMs: freshMs < 0 ? 0 : freshMs,
+    raw: raw,
+  );
 }
 
 const String defaultBaseUrl =
@@ -92,20 +108,28 @@ const String defaultBaseUrl =
 /// client를 주입하면 네트워크 없이 테스트 가능. apiKey는 호출자가 주입
 /// (여기서 하드코딩 안 함).
 Future<SignalReading> fetchReading(
-    String itstId, String direction, String apiKey,
-    {required int nowMs,
-    http.Client? client,
-    String baseUrl = defaultBaseUrl,
-    Duration timeout = const Duration(seconds: 5)}) async {
+  String itstId,
+  String direction,
+  String apiKey, {
+  required int nowMs,
+  http.Client? client,
+  String baseUrl = defaultBaseUrl,
+  Duration timeout = const Duration(seconds: 5),
+}) async {
   final c = client ?? http.Client();
   try {
-    final uri = Uri.parse(baseUrl).replace(queryParameters: {
-      'apiKey': apiKey,
-      'type': 'json',
-      'itstId': itstId,
-      'numOfRows': '10',
-    });
+    final uri = Uri.parse(baseUrl).replace(
+      queryParameters: {
+        'apiKey': apiKey,
+        'type': 'json',
+        'itstId': itstId,
+        'numOfRows': '10',
+      },
+    );
     final resp = await c.get(uri).timeout(timeout);
+    if (resp.statusCode < 200 || resp.statusCode >= 300) {
+      return const SignalReading(SignalColor.unknown, null, SignalSource.api);
+    }
     final decoded = jsonDecode(resp.body);
     if (decoded is! List) {
       return const SignalReading(SignalColor.unknown, null, SignalSource.api);

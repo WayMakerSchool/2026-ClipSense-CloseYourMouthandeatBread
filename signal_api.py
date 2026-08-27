@@ -10,7 +10,10 @@
 - 전송시각: trsmUtcTime (epoch ms)
 """
 
+from __future__ import annotations
+
 import json
+import math
 import urllib.parse
 import urllib.request
 
@@ -27,13 +30,17 @@ STATUS_MAP = {
 
 
 def _to_remain_sec(raw_cs) -> float | None:
-    """1/10초 단위 잔여값 → 초. 파싱 불가/None이면 None."""
+    """1/10초 단위 잔여값 → 초. 파싱 불가/비정상 값이면 None."""
     if raw_cs is None or raw_cs == "":
         return None
     try:
-        return round(float(raw_cs) / 10.0, 1)
+        remain_sec = float(raw_cs) / 10.0
     except (TypeError, ValueError):
         return None
+    # 외부 API의 NaN/Infinity/음수는 "충분한 잔여시간"의 근거가 될 수 없다.
+    if not math.isfinite(remain_sec) or remain_sec < 0:
+        return None
+    return round(remain_sec, 1)
 
 
 def parse_reading(records: list[dict], direction: str, now_ms: int,
@@ -70,7 +77,7 @@ def parse_reading(records: list[dict], direction: str, now_ms: int,
         return SignalReading(UNKNOWN, None, SRC_API, fresh_ms=0, raw=raw)
     try:
         fresh_ms = int(now_ms - float(trsm))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return SignalReading(UNKNOWN, None, SRC_API, fresh_ms=0, raw=raw)
 
     # 미래 시각(시계 오차 등)은 신선도를 신뢰할 수 없다 → UNKNOWN (정직성).

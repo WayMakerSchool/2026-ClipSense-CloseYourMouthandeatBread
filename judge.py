@@ -11,6 +11,10 @@
   호출자가 명시적으로 allow_single_source=True를 넘겨 opt-in한다.
 """
 
+from __future__ import annotations
+
+import math
+
 from signals import SignalReading, GREEN, UNKNOWN
 
 WALK = "WALK"
@@ -20,7 +24,12 @@ UNKNOWN_DECISION = "UNKNOWN"
 
 def _usable(r: SignalReading | None, stale_ms: int) -> bool:
     """이 판정을 판단에 쓸 수 있는가 (존재 + UNKNOWN 아님 + fresh)."""
-    return r is not None and r.color != UNKNOWN and r.fresh_ms <= stale_ms
+    if r is None or r.color == UNKNOWN:
+        return False
+    try:
+        return math.isfinite(r.fresh_ms) and 0 <= r.fresh_ms <= stale_ms
+    except TypeError:
+        return False
 
 
 def _remain_ok(readings: list[SignalReading], need_sec: float) -> bool:
@@ -28,6 +37,13 @@ def _remain_ok(readings: list[SignalReading], need_sec: float) -> bool:
     잔여 정보가 하나도 없으면 보수적으로 False (충분함을 증명 못 하므로)."""
     remains = [r.remain_sec for r in readings if r.remain_sec is not None]
     if not remains:
+        return False
+    # NaN은 비교 순서에 따라 min()에서 무시될 수 있고, Infinity는 그대로
+    # 통과한다. 외부 데이터가 비정상이면 WALK 근거로 쓰지 않는다.
+    try:
+        if any(not math.isfinite(value) or value < 0 for value in remains):
+            return False
+    except TypeError:
         return False
     return min(remains) >= need_sec
 

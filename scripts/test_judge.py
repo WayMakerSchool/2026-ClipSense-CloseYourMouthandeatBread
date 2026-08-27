@@ -47,9 +47,19 @@ check("잔여 부족 → WAIT",
 check("잔여 정보 없음 → WAIT",
       decide(api(GREEN, None), vis(GREEN, None), need_sec=7.0) == WAIT)
 
+# 외부/어댑터가 비정상 수치를 넘겨도 WALK로 통과하면 안 된다.
+check("무한대 잔여 → WAIT",
+      decide(api(GREEN, float("inf")), vis(GREEN), need_sec=7.0) == WAIT)
+check("NaN 잔여가 정상값과 섞여도 → WAIT",
+      decide(api(GREEN, 30), vis(GREEN, float("nan")), need_sec=7.0) == WAIT)
+check("음수 잔여 → WAIT",
+      decide(api(GREEN, -1), vis(GREEN), need_sec=7.0) == WAIT)
+
 # 6) 한쪽만 stale이면 → WAIT
 check("한쪽 stale → WAIT",
       decide(api(GREEN, 30, fresh=5000), vis(GREEN), stale_ms=2000) == WAIT)
+check("음수 신선도 → WAIT",
+      decide(api(GREEN, 30, fresh=-1), vis(GREEN), stale_ms=2000) == WAIT)
 
 # 7) 둘 다 UNKNOWN → UNKNOWN_DECISION
 check("둘 다 UNKNOWN → 확인불가",

@@ -76,6 +76,12 @@ check("빈 배열 → UNKNOWN", r.color == UNKNOWN, f"실제 {r.color}")
 r = parse_reading([rec(nePdsgRmdrCs="241")], "ne", now_ms=NOW)
 check("문자열 잔여 처리", r.remain_sec == 24.1, f"실제 {r.remain_sec}")
 
+# 외부 입력의 비정상 수치는 잔여시간 근거로 쓰지 않는다.
+for malformed in ("NaN", "Infinity", "-1"):
+    r = parse_reading([rec(nePdsgRmdrCs=malformed)], "ne", now_ms=NOW)
+    check(f"비정상 잔여 {malformed} → None", r.remain_sec is None,
+          f"실제 {r.remain_sec}")
+
 # 10) STATUS_MAP은 알려진 5개만, 나머지는 매핑에 없음
 check("STATUS_MAP 알려진 값만",
       set(STATUS_MAP) == {"protected-Movement-Allowed", "permissive-Movement-Allowed",
@@ -90,6 +96,9 @@ check("None이어도 raw 보존", r.raw == "protected-Movement-Allowed")
 
 r = parse_reading([rec(trsmUtcTime="not-a-number")], "ne", now_ms=NOW)
 check("trsmUtcTime 파싱불가 → UNKNOWN", r.color == UNKNOWN, f"실제 {r.color}")
+
+r = parse_reading([rec(trsmUtcTime="Infinity")], "ne", now_ms=NOW)
+check("trsmUtcTime 무한대 → UNKNOWN", r.color == UNKNOWN, f"실제 {r.color}")
 
 # --- 최종 리뷰: itstId 매칭 (엉뚱한 교차로 신호를 읽지 않도록) ---
 multi = [

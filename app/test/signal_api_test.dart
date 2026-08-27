@@ -49,9 +49,13 @@ void main() {
   });
 
   test('미지 상태 → unknown, raw 보존', () {
-    final r = parseReading([
-      rec(over: {'nePdsgStatNm': 'some-New-Phase'})
-    ], 'ne', now);
+    final r = parseReading(
+      [
+        rec(over: {'nePdsgStatNm': 'some-New-Phase'}),
+      ],
+      'ne',
+      now,
+    );
     expect(r.color, SignalColor.unknown);
     expect(r.raw, 'some-New-Phase');
   });
@@ -72,10 +76,27 @@ void main() {
   });
 
   test('문자열 잔여 처리', () {
-    final r = parseReading([
-      rec(over: {'nePdsgRmdrCs': '241'})
-    ], 'ne', now);
+    final r = parseReading(
+      [
+        rec(over: {'nePdsgRmdrCs': '241'}),
+      ],
+      'ne',
+      now,
+    );
     expect(r.remainSec, 24.1);
+  });
+
+  test('NaN·Infinity·음수 잔여는 사용하지 않는다', () {
+    for (final malformed in ['NaN', 'Infinity', '-1']) {
+      final r = parseReading(
+        [
+          rec(over: {'nePdsgRmdrCs': malformed}),
+        ],
+        'ne',
+        now,
+      );
+      expect(r.remainSec, isNull, reason: malformed);
+    }
   });
 
   test('statusMap 알려진 값만', () {
@@ -89,32 +110,55 @@ void main() {
   });
 
   test('trsmUtcTime null → unknown', () {
-    final r = parseReading([
-      rec(over: {'trsmUtcTime': null})
-    ], 'ne', now);
+    final r = parseReading(
+      [
+        rec(over: {'trsmUtcTime': null}),
+      ],
+      'ne',
+      now,
+    );
     expect(r.color, SignalColor.unknown);
     expect(r.raw, 'protected-Movement-Allowed');
   });
 
   test('trsmUtcTime 파싱불가 → unknown', () {
-    final r = parseReading([
-      rec(over: {'trsmUtcTime': 'not-a-number'})
-    ], 'ne', now);
+    final r = parseReading(
+      [
+        rec(over: {'trsmUtcTime': 'not-a-number'}),
+      ],
+      'ne',
+      now,
+    );
+    expect(r.color, SignalColor.unknown);
+  });
+
+  test('trsmUtcTime 무한대 → unknown', () {
+    final r = parseReading(
+      [
+        rec(over: {'trsmUtcTime': 'Infinity'}),
+      ],
+      'ne',
+      now,
+    );
     expect(r.color, SignalColor.unknown);
   });
 
   test('여러 레코드 중 itstId 매칭 선택', () {
     final multi = [
-      rec(over: {
-        'itstId': '9999',
-        'nePdsgStatNm': 'stop-And-Remain',
-        'nePdsgRmdrCs': 50
-      }),
-      rec(over: {
-        'itstId': '1537',
-        'nePdsgStatNm': 'protected-Movement-Allowed',
-        'nePdsgRmdrCs': 241
-      }),
+      rec(
+        over: {
+          'itstId': '9999',
+          'nePdsgStatNm': 'stop-And-Remain',
+          'nePdsgRmdrCs': 50,
+        },
+      ),
+      rec(
+        over: {
+          'itstId': '1537',
+          'nePdsgStatNm': 'protected-Movement-Allowed',
+          'nePdsgRmdrCs': 241,
+        },
+      ),
     ];
     final r = parseReading(multi, 'ne', now, itstId: '1537');
     expect(r.color, SignalColor.green);
@@ -126,8 +170,10 @@ void main() {
       rec(over: {'itstId': '9999'}),
       rec(over: {'itstId': '1537'}),
     ];
-    expect(parseReading(multi, 'ne', now, itstId: '0000').color,
-        SignalColor.unknown);
+    expect(
+      parseReading(multi, 'ne', now, itstId: '0000').color,
+      SignalColor.unknown,
+    );
   });
 
   test('itstId 미지정 시 첫 레코드(하위호환)', () {
@@ -139,16 +185,26 @@ void main() {
   });
 
   test('미래 시각(큰 음수 fresh) → unknown', () {
-    final r = parseReading([
-      rec(over: {'trsmUtcTime': now + 10000})
-    ], 'ne', now, staleMs: 2000);
+    final r = parseReading(
+      [
+        rec(over: {'trsmUtcTime': now + 10000}),
+      ],
+      'ne',
+      now,
+      staleMs: 2000,
+    );
     expect(r.color, SignalColor.unknown);
   });
 
   test('작은 시계오차는 허용(초록 통과)', () {
-    final r = parseReading([
-      rec(over: {'trsmUtcTime': now + 100})
-    ], 'ne', now, staleMs: 2000);
+    final r = parseReading(
+      [
+        rec(over: {'trsmUtcTime': now + 100}),
+      ],
+      'ne',
+      now,
+      staleMs: 2000,
+    );
     expect(r.color, SignalColor.green);
   });
 
@@ -165,24 +221,56 @@ void main() {
   group('fetchReading (http.Client 주입)', () {
     test('네트워크 오류 → unknown', () async {
       final client = MockClient((req) async => throw Exception('network down'));
-      final r = await fetchReading('1537', 'ne', 'dummy-key',
-          nowMs: now, client: client);
+      final r = await fetchReading(
+        '1537',
+        'ne',
+        'dummy-key',
+        nowMs: now,
+        client: client,
+      );
       expect(r.color, SignalColor.unknown);
       expect(r.source, SignalSource.api);
     });
 
     test('JSON 파싱 실패 → unknown', () async {
-      final client = MockClient((req) async => http.Response('<html>err</html>', 200));
-      final r = await fetchReading('1537', 'ne', 'dummy-key',
-          nowMs: now, client: client);
+      final client = MockClient(
+        (req) async => http.Response('<html>err</html>', 200),
+      );
+      final r = await fetchReading(
+        '1537',
+        'ne',
+        'dummy-key',
+        nowMs: now,
+        client: client,
+      );
       expect(r.color, SignalColor.unknown);
     });
 
     test('list 아닌 응답(dict) → unknown', () async {
       final client = MockClient(
-          (req) async => http.Response(jsonEncode({'error': 'x'}), 200));
-      final r = await fetchReading('1537', 'ne', 'dummy-key',
-          nowMs: now, client: client);
+        (req) async => http.Response(jsonEncode({'error': 'x'}), 200),
+      );
+      final r = await fetchReading(
+        '1537',
+        'ne',
+        'dummy-key',
+        nowMs: now,
+        client: client,
+      );
+      expect(r.color, SignalColor.unknown);
+    });
+
+    test('HTTP 비정상 상태 코드는 본문과 무관하게 unknown', () async {
+      final client = MockClient(
+        (req) async => http.Response(jsonEncode([rec()]), 503),
+      );
+      final r = await fetchReading(
+        '1537',
+        'ne',
+        'dummy-key',
+        nowMs: now,
+        client: client,
+      );
       expect(r.color, SignalColor.unknown);
     });
 
@@ -193,11 +281,16 @@ void main() {
           'trsmUtcTime': now,
           'nePdsgStatNm': 'protected-Movement-Allowed',
           'nePdsgRmdrCs': 241,
-        }
+        },
       ]);
       final client = MockClient((req) async => http.Response(body, 200));
-      final r = await fetchReading('1537', 'ne', 'dummy-key',
-          nowMs: now, client: client);
+      final r = await fetchReading(
+        '1537',
+        'ne',
+        'dummy-key',
+        nowMs: now,
+        client: client,
+      );
       expect(r.color, SignalColor.green);
       expect(r.remainSec, 24.1);
     });
