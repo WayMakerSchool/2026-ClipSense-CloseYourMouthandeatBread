@@ -1,4 +1,33 @@
-# Clip sense — 보행 신호 음성 안내 데모
+# Clip Sense — 보행 신호 이중 검증 안내
+
+이 저장소에는 두 실행 경로가 있다.
+
+- `app/`: 서울 T-Data API와 휴대전화 카메라를 엄격 AND로 결합한 Flutter 앱
+- 루트 Python 코드: 웹캠 한 대로 오프라인 시연하는 부스 데모
+
+> **안전 고지:** 연구·공모전용 보조 프로토타입이다. 공식 음향신호기나 사용자의
+> 현장 판단을 대체하지 않으며, 실제 횡단의 유일한 근거로 사용하면 안 된다.
+
+## 모바일 앱
+
+앱은 GPS로 지원 교차로를 찾고 사용자가 횡단 방향을 고르면, T-Data 실시간 신호와
+카메라 HSV 판정을 함께 확인한다. 둘 다 초록이고 잔여시간이 7초 이상일 때만 보행을
+허용한다. 실행에는 승인된 T-Data 키가 필요하다.
+
+```bash
+cd app
+flutter pub get
+flutter analyze
+flutter test
+flutter run --dart-define=TDATA_KEY='발급받은_API_키'
+```
+
+카메라 조준, 접근성, 실기기 출고 점검과 구조 설명은 [모바일 앱 안내](app/README.md)를
+참고한다. 운영 매핑의 청계2가·정동·국일관 좌표와 이름은 서울 T-Data
+[`교차로 MAP 정보`](https://t-data.seoul.go.kr/dataprovide/trafficdataviewfile.do?data_id=10144)
+2024-11-14 배포 CSV로 대조했다.
+
+## Python 부스 데모
 
 시각장애인용 보행 신호 안내 기기의 부스 시연 데모. 웹캠이 보행 신호등을
 읽어 한국어 음성으로 안내한다("지금 건너셔도 됩니다" / "빨간불입니다").
@@ -15,6 +44,8 @@
 
 > ROI는 한 번 지정하면 저장된다. 다음부터는 3번만 하면 된다.
 > 카메라나 모니터 위치가 바뀌었으면 `./run_demo.sh --reselect-roi`로 다시 잡는다.
+> 기기별 ROI는 Git에서 제외되는 `config.local.json`에 저장되고, 추적 중인
+> `config.json`의 공용 HSV 임계값은 실행 중 자동 변경되지 않는다.
 
 ## 동작 원리
 
@@ -63,10 +94,14 @@
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-.venv/bin/python scripts/generate_voice.py    # 음성 파일 생성 (1회, 인터넷 필요)
 .venv/bin/python scripts/make_test_video.py   # 합성 테스트 영상 생성
+.venv/bin/python scripts/run_unit_tests.py    # API·판단·비전·음성 단위/강건성 검증
 .venv/bin/python scripts/run_pipeline_test.py # 파이프라인 자동 검증
 ```
+
+검증된 한국어 WAV 4개는 오프라인 시연을 위해 저장소에 포함한다. 음성을 다시 만들 때만
+`.venv/bin/pip install -r requirements-dev.txt` 후
+`.venv/bin/python scripts/generate_voice.py`를 실행한다(인터넷·ffmpeg 또는 afconvert 필요).
 
 주요 옵션: `--video <경로>`(영상 입력) / `--camera N`(웹캠) / `--reselect-roi` /
 `--digit-roi x,y,w,h`(숫자 영역) / `--headless`(창 없음) / `--mute`(무음).
