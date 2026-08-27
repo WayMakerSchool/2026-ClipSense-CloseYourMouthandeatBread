@@ -1,0 +1,6 @@
+# 이 파일을 android/key.properties로 복사한 뒤 실제 값으로 바꾼다.
+# key.properties와 keystore 파일은 .gitignore 대상이며 절대 공개 저장소에 올리지 않는다.
+storePassword=CHANGE_ME
+keyPassword=CHANGE_ME
+keyAlias=clip-sense
+storeFile=/absolute/path/to/clip-sense-release.jks
