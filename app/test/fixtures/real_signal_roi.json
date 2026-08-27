@@ -1,0 +1,33 @@
+{
+  "width": 320,
+  "height": 180,
+  "channels": 3,
+  "layout": "BGR row-major, no header (RoiImage.bytes)",
+  "source": "real_signal_clip.mp4",
+  "source_frame_size": [
+    1280,
+    720
+  ],
+  "frame_index": 20,
+  "crop": {
+    "x": 480,
+    "y": 270,
+    "width": 320,
+    "height": 180,
+    "roi_frac": 0.25
+  },
+  "sha256": "81bc8a021c9e7c06efebd42769a89b25be4a64bf0b4a1e6782900d4e878a77c0",
+  "regenerate_cmd": "python scripts/dump_roi_fixture.py --video data/real_signal_clip.mp4 --frame 20 --roi-frac 0.25 --out app/test/fixtures/real_signal_roi",
+  "opencv_version": "5.0.0",
+  "python_reference": {
+    "raw": "GREEN",
+    "reason": "",
+    "brightness": 126.6354,
+    "green_area_ratio": 0.02408,
+    "green_circularity": 0.280808,
+    "green_valid": true,
+    "red_area_ratio": 0.001667,
+    "red_circularity": 0.628858,
+    "red_valid": false
+  }
+}

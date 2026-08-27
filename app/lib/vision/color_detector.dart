@@ -89,9 +89,11 @@ class ColorDetector {
       _lastRaw == colorRaw ? _cfg.minAreaRatio * _cfg.validExitFactor : _cfg.minAreaRatio;
 
   FrameResult detect(RoiImage roi) {
-    // 블러 생략 — OpenCV GaussianBlur는 카메라/통합 조각에서. 합성 테스트의
-    // 큰 뚜렷한 원은 블러 유무로 판정이 안 바뀐다(계획 §Task5).
-    final hsv = bgrToHsv(roi);
+    // detector.py와 같은 위치: HSV 변환 직전 5x5 가우시안 블러(OpenCV와 수치 동일).
+    // 실제 카메라 프레임은 LED 램프 안의 픽셀 노이즈로 마스크가 잘게 쪼개져 초록 blob이
+    // minAreaRatio 아래로 떨어진다 — 실측(서울 보행등 근접 클립, 중앙 ROI 50%):
+    // 블러 없이 0.39% → no_blob, 블러 후 0.62% → GREEN. test/vision/color_detector_real_clip_test 참조.
+    final hsv = bgrToHsv(gaussianBlur5x5(roi));
     final w = roi.width, h = roi.height;
     final roiArea = w * h;
 

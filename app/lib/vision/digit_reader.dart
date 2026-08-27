@@ -84,11 +84,9 @@ class DigitReader {
   DigitReader(this._cfg);
 
   _Mask _mask(RoiImage roi) {
-    // 블러 생략 — digits.py는 cv2.GaussianBlur(roi,(3,3),0)를 HSV 변환 전에
-    // 적용하지만, image_ops.dart에 gaussianBlur가 없어 color_detector.dart와
-    // 동일하게 이 조각에서는 생략한다(카메라/통합 조각에서 다룰 항목).
-    // 합성 테스트 숫자는 선명해 블러 없이도 세그먼트가 정확히 갈린다.
-    final hsv = bgrToHsv(roi);
+    // digits.py _mask 와 같은 위치: HSV 변환 직전 3x3 가우시안 블러(OpenCV와 수치 동일).
+    // 숫자 판독은 5x5가 아니라 3x3 — 세그먼트 사이 공백이 메워지지 않게 약하게만 편다.
+    final hsv = bgrToHsv(gaussianBlur3x3(roi));
     final n = roi.width * roi.height;
     final mask = inRangeHsv(hsv, n, _cfg.digitRedHsv);
     final closed = morphClose(mask, roi.width, roi.height, 3);
