@@ -2,6 +2,9 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:clip_sense/vision/detector_config.dart';
 import 'package:clip_sense/vision/image_ops.dart';
+import 'package:clip_sense/vision/roi_image.dart';
+
+import 'blur_expected.dart';
 
 // HSV 픽셀 배열 헬퍼: 모든 픽셀을 (h,s,v)로.
 Uint8List hsvSolid(int n, int h, int s, int v) {
@@ -10,6 +13,19 @@ Uint8List hsvSolid(int n, int h, int s, int v) {
     b[i * 3] = h; b[i * 3 + 1] = s; b[i * 3 + 2] = v;
   }
   return b;
+}
+
+RoiImage _img(int w, int h, List<int> px) => RoiImage(w, h, Uint8List.fromList(px));
+
+/// 블러 결과를 기대 픽셀과 채널 단위로 비교 (어긋난 픽셀 좌표를 reason에 표시).
+void _expectPixels(RoiImage got, int w, int h, List<int> expected) {
+  expect(got.width, w);
+  expect(got.height, h);
+  expect(got.bytes.length, w * h * 3);
+  for (var i = 0; i < expected.length; i++) {
+    expect(got.bytes[i], expected[i],
+        reason: 'pixel ${i ~/ 3} (x=${(i ~/ 3) % w}, y=${i ~/ 3 ~/ w}) ch=${i % 3}');
+  }
 }
 
 void main() {
@@ -60,5 +76,48 @@ void main() {
     // 노이즈는 블록과 안 붙게 (0,0)에 두면 open 후 사라짐... 대신 블록 검증
     final o = morphOpen(m, 7, 7, 3);
     expect(o[3 * 7 + 3], 255); // 블록 중앙 유지
+  });
+
+  // ---- 가우시안 블러: OpenCV GaussianBlur((k,k),0) 와 픽셀 단위 동일 ----
+  // 기대값은 scripts/gen_blur_expected.py 가 실제 cv2로 만든 blur_expected.dart 상수.
+
+  test('gaussianBlur5x5: 9x7 난수 BGR — cv2.GaussianBlur((5,5),0) 과 픽셀 일치', () {
+    final got = gaussianBlur5x5(_img(blurMainW, blurMainH, blurMainInput));
+    _expectPixels(got, blurMainW, blurMainH, blurMainExpected5x5);
+  });
+
+  test('gaussianBlur3x3: 9x7 난수 BGR — cv2.GaussianBlur((3,3),0) 과 픽셀 일치', () {
+    final got = gaussianBlur3x3(_img(blurMainW, blurMainH, blurMainInput));
+    _expectPixels(got, blurMainW, blurMainH, blurMainExpected3x3);
+  });
+
+  test('경계 반사(BORDER_REFLECT_101): 커널보다 작은 이미지도 cv2와 일치', () {
+    _expectPixels(gaussianBlur5x5(_img(blurTiny2x2W, blurTiny2x2H, blurTiny2x2Input)),
+        blurTiny2x2W, blurTiny2x2H, blurTiny2x2Expected5x5);
+    _expectPixels(gaussianBlur3x3(_img(blurTiny2x2W, blurTiny2x2H, blurTiny2x2Input)),
+        blurTiny2x2W, blurTiny2x2H, blurTiny2x2Expected3x3);
+    _expectPixels(gaussianBlur5x5(_img(blurCol1x4W, blurCol1x4H, blurCol1x4Input)),
+        blurCol1x4W, blurCol1x4H, blurCol1x4Expected5x5);
+    _expectPixels(gaussianBlur3x3(_img(blurCol1x4W, blurCol1x4H, blurCol1x4Input)),
+        blurCol1x4W, blurCol1x4H, blurCol1x4Expected3x3);
+    _expectPixels(gaussianBlur5x5(_img(blurOne1x1W, blurOne1x1H, blurOne1x1Input)),
+        blurOne1x1W, blurOne1x1H, blurOne1x1Expected5x5);
+  });
+
+  test('블러는 입력을 바꾸지 않고 새 버퍼를 돌려준다', () {
+    final src = _img(blurMainW, blurMainH, blurMainInput);
+    final before = Uint8List.fromList(src.bytes);
+    final got = gaussianBlur5x5(src);
+    expect(src.bytes, before);
+    expect(identical(got.bytes, src.bytes), isFalse);
+  });
+
+  test('단색 이미지는 블러 후에도 단색 (커널 합 = 1)', () {
+    final px = List<int>.filled(6 * 5 * 3, 0);
+    for (var i = 0; i < 6 * 5; i++) {
+      px[i * 3] = 17; px[i * 3 + 1] = 200; px[i * 3 + 2] = 99;
+    }
+    _expectPixels(gaussianBlur5x5(_img(6, 5, px)), 6, 5, px);
+    _expectPixels(gaussianBlur3x3(_img(6, 5, px)), 6, 5, px);
   });
 }

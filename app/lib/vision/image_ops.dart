@@ -1,9 +1,97 @@
-/// HSV 마스크(inRange) + 형태학(erode/dilate/open/close). 순수 함수.
+/// 가우시안 블러 + HSV 마스크(inRange) + 형태학(erode/dilate/open/close). 순수 함수.
 library;
 
 import 'dart:typed_data';
 
 import 'detector_config.dart';
+import 'roi_image.dart';
+
+/// OpenCV BORDER_REFLECT_101 인덱스 (gfedcb|abcdefgh|gfedcba). 경계 픽셀은 반복하지 않는다.
+int _reflect101(int i, int n) {
+  if (n == 1) return 0;
+  while (i < 0 || i >= n) {
+    if (i < 0) i = -i;
+    if (i >= n) i = 2 * (n - 1) - i;
+  }
+  return i;
+}
+
+/// 분리형 정수 가우시안 블러 (BGR 3채널). cv2.GaussianBlur(img, (k,k), 0) 와 픽셀 단위 동일.
+///
+/// sigma=0이면 OpenCV는 고정 커널(5: [1,4,6,4,1]/16, 3: [1,2,1]/4)을 쓰고 8비트 입력은
+/// 고정소수점 경로라 중간 반올림이 없다. 그래서 가로 합성곱 결과를 정수로 유지한 뒤
+/// 세로 합성곱까지 끝내고 한 번만 (sum + S/2) ~/ S 로 반올림하면 값이 정확히 같다
+/// (scripts/gen_blur_expected.py 가 cv2로 검증한 기대값을 image_ops_test.dart 가 고정).
+RoiImage _gaussianBlur(RoiImage src, List<int> weights) {
+  final w = src.width, h = src.height;
+  final k = weights.length, r = k ~/ 2;
+  var s = 0;
+  for (final wt in weights) {
+    s += wt;
+  }
+  final norm = s * s, half = norm ~/ 2;
+  final bytes = src.bytes;
+
+  // 축별 반사 인덱스를 미리 계산 (픽셀마다 while 루프를 돌지 않도록).
+  final xs = Int32List(w * k);
+  for (var x = 0; x < w; x++) {
+    for (var t = 0; t < k; t++) {
+      xs[x * k + t] = _reflect101(x + t - r, w);
+    }
+  }
+  final ys = Int32List(h * k);
+  for (var y = 0; y < h; y++) {
+    for (var t = 0; t < k; t++) {
+      ys[y * k + t] = _reflect101(y + t - r, h);
+    }
+  }
+
+  // 1단계: 가로 합성곱 (정수, 반올림 없음). 최대 255*16 = 4080.
+  final tmp = Int32List(w * h * 3);
+  for (var y = 0; y < h; y++) {
+    final row = y * w;
+    for (var x = 0; x < w; x++) {
+      var b = 0, g = 0, rr = 0;
+      for (var t = 0; t < k; t++) {
+        final idx = (row + xs[x * k + t]) * 3;
+        final wt = weights[t];
+        b += bytes[idx] * wt;
+        g += bytes[idx + 1] * wt;
+        rr += bytes[idx + 2] * wt;
+      }
+      final o = (row + x) * 3;
+      tmp[o] = b;
+      tmp[o + 1] = g;
+      tmp[o + 2] = rr;
+    }
+  }
+
+  // 2단계: 세로 합성곱 + 한 번의 반올림. 최대 4080*16 = 65280.
+  final out = Uint8List(w * h * 3);
+  for (var y = 0; y < h; y++) {
+    for (var x = 0; x < w; x++) {
+      var b = 0, g = 0, rr = 0;
+      for (var t = 0; t < k; t++) {
+        final idx = (ys[y * k + t] * w + x) * 3;
+        final wt = weights[t];
+        b += tmp[idx] * wt;
+        g += tmp[idx + 1] * wt;
+        rr += tmp[idx + 2] * wt;
+      }
+      final o = (y * w + x) * 3;
+      out[o] = (b + half) ~/ norm;
+      out[o + 1] = (g + half) ~/ norm;
+      out[o + 2] = (rr + half) ~/ norm;
+    }
+  }
+  return RoiImage(w, h, out);
+}
+
+/// cv2.GaussianBlur(roi_bgr, (5,5), 0) — detector.py ColorDetector.detect 가 HSV 변환 직전에 쓴다.
+RoiImage gaussianBlur5x5(RoiImage src) => _gaussianBlur(src, const [1, 4, 6, 4, 1]);
+
+/// cv2.GaussianBlur(roi_bgr, (3,3), 0) — digits.py DigitReader._mask 가 HSV 변환 직전에 쓴다.
+RoiImage gaussianBlur3x3(RoiImage src) => _gaussianBlur(src, const [1, 2, 1]);
 
 /// HSV 픽셀(길이 n*3)에서 범위 안 픽셀을 255로. 범위 여럿이면 OR.
 Uint8List inRangeHsv(Uint8List hsv, int n, List<HsvRange> ranges) {
