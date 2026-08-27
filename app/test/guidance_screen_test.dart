@@ -234,20 +234,98 @@ void main() {
     c.dispose();
   });
 
-  testWidgets('앱이 백그라운드로 가면 안내·카메라 루프를 안전하게 정지한다', (tester) async {
-    final c = makeController(
-      const SignalReading(SignalColor.red, null, SignalSource.api),
-    );
-    await tester.pumpWidget(MaterialApp(home: GuidanceScreen(controller: c)));
-    c.start();
-    expect(c.running, isTrue);
+  // 앱 생명주기. 정지는 화면이 실제로 가려지는 paused/hidden/detached에서만.
+  // inactive는 카메라 권한 다이얼로그·알림창·제어센터 같은 잠깐의 포커스 이탈이라
+  // 여기서 정지하면 첫 탭의 권한 요청만으로 안내가 취소된다(실기기 재현).
+  //
+  // 테스트 바인딩은 생명주기 상태를 테스트 사이에 초기화하지 않고, 같은 상태로의
+  // 전이는 무시되므로(SchedulerBinding) 각 테스트가 resumed로 정규화하고 끝에
+  // 되돌린다 — 실행 순서와 무관하게 통과해야 한다.
+  group('앱 생명주기', () {
+    const red = SignalReading(SignalColor.red, null, SignalSource.api);
 
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
-    await tester.pump();
+    Future<void> setLifecycle(WidgetTester tester, AppLifecycleState s) async {
+      tester.binding.handleAppLifecycleStateChanged(s);
+      await tester.pump();
+    }
 
-    expect(c.running, isFalse);
-    expect(c.decision, Decision.unknown);
-    expect(find.textContaining('시작'), findsOneWidget);
-    c.dispose();
+    Future<void> normalize(WidgetTester tester) async {
+      await setLifecycle(tester, AppLifecycleState.resumed);
+      addTearDown(() {
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
+      });
+    }
+
+    testWidgets('inactive(권한 다이얼로그 등)에서는 계속 실행된다', (tester) async {
+      final speech = FakeSpeech();
+      final c = makeController(red, speech: speech);
+      await tester.pumpWidget(MaterialApp(home: GuidanceScreen(controller: c)));
+      await normalize(tester);
+      c.start();
+      expect(c.running, isTrue);
+
+      await setLifecycle(tester, AppLifecycleState.inactive);
+      expect(c.running, isTrue);
+      expect(speech.spoken, isNot(contains(kStoppedSpeechText)));
+
+      await setLifecycle(tester, AppLifecycleState.resumed);
+      expect(c.running, isTrue);
+      c.dispose();
+    });
+
+    testWidgets('paused(백그라운드)면 정지하고 정지 음성을 낸다', (tester) async {
+      final speech = FakeSpeech();
+      final c = makeController(red, speech: speech);
+      await tester.pumpWidget(MaterialApp(home: GuidanceScreen(controller: c)));
+      await normalize(tester);
+      c.start();
+      expect(c.running, isTrue);
+
+      await setLifecycle(tester, AppLifecycleState.paused);
+
+      expect(c.running, isFalse);
+      expect(c.decision, Decision.unknown);
+      expect(speech.spoken, [kStoppedSpeechText]);
+      expect(find.textContaining('시작'), findsOneWidget);
+      c.dispose();
+    });
+
+    testWidgets('hidden·detached도 정지한다(정지 음성 포함)', (tester) async {
+      for (final state in [
+        AppLifecycleState.hidden,
+        AppLifecycleState.detached,
+      ]) {
+        final speech = FakeSpeech();
+        final c = makeController(red, speech: speech);
+        await tester.pumpWidget(
+          MaterialApp(home: GuidanceScreen(controller: c)),
+        );
+        await normalize(tester);
+        c.start();
+        expect(c.running, isTrue, reason: '$state');
+
+        await setLifecycle(tester, state);
+
+        expect(c.running, isFalse, reason: '$state');
+        expect(speech.spoken, [kStoppedSpeechText], reason: '$state');
+        c.dispose();
+      }
+    });
+
+    testWidgets('정지 상태에서 paused가 와도 정지 음성은 없다(중복 안내 방지)', (tester) async {
+      final speech = FakeSpeech();
+      final c = makeController(red, speech: speech);
+      await tester.pumpWidget(MaterialApp(home: GuidanceScreen(controller: c)));
+      await normalize(tester);
+      expect(c.running, isFalse);
+
+      await setLifecycle(tester, AppLifecycleState.paused);
+
+      expect(c.running, isFalse);
+      expect(speech.spoken, isEmpty);
+      c.dispose();
+    });
   });
 }

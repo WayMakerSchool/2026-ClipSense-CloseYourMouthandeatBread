@@ -38,10 +38,22 @@ class _GuidanceScreenState extends State<GuidanceScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // 다른 앱·잠금화면·권한 다이얼로그로 영상 근거가 사라지면 즉시 정지한다.
-    // 복귀 후에는 사용자가 카메라를 다시 조준하고 명시적으로 시작해야 한다.
-    if (state != AppLifecycleState.resumed && controller.running) {
-      controller.stop();
+    // 화면이 실제로 가려져 영상 근거가 사라지는 paused/hidden/detached에서만
+    // 정지한다(정지 음성 포함 — 전맹 사용자가 멈춘 것을 알 수 있게). 복귀 후에는
+    // 사용자가 카메라를 다시 조준하고 명시적으로 시작해야 한다.
+    //
+    // inactive는 유지한다: 카메라 권한 다이얼로그·알림창·제어센터·전화 수신 직전
+    // 같은 잠깐의 포커스 이탈이며, 여기서 정지하면 첫 탭이 띄우는 권한 요청만으로
+    // 안내가 취소된다. 그 사이 카메라 프레임이 끊기면 판독이 stale→unknown이
+    // 되어 judge가 wait로 수렴하므로 안전 정책은 그대로다.
+    switch (state) {
+      case AppLifecycleState.paused:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.detached:
+        if (controller.running) controller.stop();
+      case AppLifecycleState.resumed:
+      case AppLifecycleState.inactive:
+        break;
     }
   }
 
