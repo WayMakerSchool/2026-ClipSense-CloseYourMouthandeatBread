@@ -1,5 +1,5 @@
 name: clip_sense
-description: "A new Flutter project."
+description: "서울 T-Data와 카메라를 이중 검증하는 접근성 보행 신호 안내 앱."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -20,6 +20,7 @@ version: 1.0.0+1
 
 environment:
   sdk: ^3.9.2
+  flutter: ">=3.35.0"
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -39,6 +40,7 @@ dependencies:
   flutter_tts: ^4.2.5
   vibration: ^3.1.8
   geolocator: ^14.0.2
+  camera: 0.11.2+1
 
 dev_dependencies:
   flutter_test:

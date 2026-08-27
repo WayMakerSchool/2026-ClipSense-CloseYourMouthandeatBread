@@ -23,6 +23,9 @@ GuidanceController makeController(SignalReading reading) {
     feedback: FeedbackController(FakeSpeech(), FakeHaptic()),
     itstId: '1850',
     direction: 'st',
+    // 이 파일은 화면 표현만 검증한다. 엄격 AND 배선은 controller 테스트에서
+    // FakeVisionSource로 별도 검증한다.
+    allowSingleSource: true,
     fetch: (itstId, direction, apiKey, {required nowMs}) async => reading,
   );
 }
@@ -62,6 +65,7 @@ void main() {
     await c.tickOnce();
     await tester.pump();
     expect(find.textContaining('기다리세요'), findsOneWidget);
+    expect(find.textContaining('빨간불'), findsOneWidget);
     c.dispose();
   });
 
@@ -84,11 +88,11 @@ void main() {
   // 상태+조작 안내 전체를, 라이브 리전 노드(Key('guidanceLiveRegionSemantics'))는
   // 상태만 담는다 — guidance_screen.dart의 두 형제 Semantics 노드 구조 참고.
   final buttonSemantics = find.byKey(const Key('guidanceButtonSemantics'));
-  final liveRegionSemantics =
-      find.byKey(const Key('guidanceLiveRegionSemantics'));
+  final liveRegionSemantics = find.byKey(
+    const Key('guidanceLiveRegionSemantics'),
+  );
 
-  testWidgets('Semantics 버튼 라벨: 정지 상태(시작 전) → "정지" 또는 "시작" 포함',
-      (tester) async {
+  testWidgets('Semantics 버튼 라벨: 정지 상태(시작 전) → "정지" 또는 "시작" 포함', (tester) async {
     final c = makeController(
       const SignalReading(SignalColor.red, null, SignalSource.api),
     );
@@ -103,8 +107,7 @@ void main() {
     c.dispose();
   });
 
-  testWidgets('Semantics 버튼 라벨: walk 상태 → "건너세요"+잔여시간(15) 포함',
-      (tester) async {
+  testWidgets('Semantics 버튼 라벨: walk 상태 → "건너세요"+잔여시간(15) 포함', (tester) async {
     final c = makeController(
       const SignalReading(
         SignalColor.green,
@@ -168,9 +171,9 @@ void main() {
     c.dispose();
   });
 
-  testWidgets(
-      'start→walk→stop 실제 경로: 정지 후 "건너세요"가 아니라 시작 안내가 보인다(안전)',
-      (tester) async {
+  testWidgets('start→walk→stop 실제 경로: 정지 후 "건너세요"가 아니라 시작 안내가 보인다(안전)', (
+    tester,
+  ) async {
     final c = makeController(
       const SignalReading(
         SignalColor.green,
@@ -191,6 +194,23 @@ void main() {
     expect(find.textContaining('시작'), findsOneWidget);
     expect(find.textContaining('건너세요'), findsNothing);
 
+    c.dispose();
+  });
+
+  testWidgets('앱이 백그라운드로 가면 안내·카메라 루프를 안전하게 정지한다', (tester) async {
+    final c = makeController(
+      const SignalReading(SignalColor.red, null, SignalSource.api),
+    );
+    await tester.pumpWidget(MaterialApp(home: GuidanceScreen(controller: c)));
+    c.start();
+    expect(c.running, isTrue);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump();
+
+    expect(c.running, isFalse);
+    expect(c.decision, Decision.unknown);
+    expect(find.textContaining('시작'), findsOneWidget);
     c.dispose();
   });
 }

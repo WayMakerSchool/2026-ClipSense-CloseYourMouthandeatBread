@@ -8,6 +8,8 @@ import 'package:clip_sense/app/intersection.dart';
 import 'package:clip_sense/app/location_service.dart';
 import 'package:clip_sense/app/selection_screen.dart';
 import 'package:clip_sense/app/guidance_screen.dart';
+import 'package:clip_sense/camera/camera_vision_source.dart';
+import 'package:clip_sense/signals/signal_reading.dart';
 
 class FakeLocationService implements LocationService {
   final LocationResult result;
@@ -26,7 +28,24 @@ class FakeHaptic implements HapticOutput {
   Future<void> play(Decision d) async {}
 }
 
-FeedbackController fakeFeedback() => FeedbackController(FakeSpeech(), FakeHaptic());
+class FakeVisionSource implements VisionSource {
+  int stopCalls = 0;
+
+  @override
+  SignalReading get latestReading =>
+      const SignalReading(SignalColor.unknown, null, SignalSource.vision);
+
+  @override
+  Future<void> start() async {}
+
+  @override
+  Future<void> stop() async {
+    stopCalls++;
+  }
+}
+
+FeedbackController fakeFeedback() =>
+    FeedbackController(FakeSpeech(), FakeHaptic());
 
 const _testList = [
   Intersection('1850', '테스트 교차로 A', 37.5665, 126.9780, [
@@ -36,12 +55,12 @@ const _testList = [
 ];
 
 Widget wrap(LocationResult result) => MaterialApp(
-      home: SelectionScreen(
-        location: FakeLocationService(result),
-        feedbackFactory: fakeFeedback,
-        intersections: _testList,
-      ),
-    );
+  home: SelectionScreen(
+    location: FakeLocationService(result),
+    feedbackFactory: fakeFeedback,
+    intersections: _testList,
+  ),
+);
 
 void main() {
   testWidgets('위치 성공 + 근처 교차로 → 방향 목록 표시', (tester) async {
@@ -85,13 +104,15 @@ void main() {
       return fakeFeedback();
     }
 
-    await tester.pumpWidget(MaterialApp(
-      home: SelectionScreen(
-        location: FakeLocationService(LocationOk(37.5665, 126.9780)),
-        feedbackFactory: countingFeedback,
-        intersections: _testList,
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SelectionScreen(
+          location: FakeLocationService(LocationOk(37.5665, 126.9780)),
+          feedbackFactory: countingFeedback,
+          intersections: _testList,
+        ),
       ),
-    ));
+    );
     await tester.pumpAndSettle();
 
     final directionButton = find.byWidgetPredicate(
@@ -111,5 +132,31 @@ void main() {
     // TTS/햅틱 엔진)가 중복 생성된다. 가드가 있으면 첫 탭만 통과한다.
     expect(feedbackBuildCount, 1);
     expect(find.byType(GuidanceScreen), findsOneWidget);
+  });
+
+  testWidgets('선택 화면이 만든 GuidanceController는 route pop 때 카메라를 정리한다', (
+    tester,
+  ) async {
+    final vision = FakeVisionSource();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SelectionScreen(
+          location: FakeLocationService(LocationOk(37.5665, 126.9780)),
+          feedbackFactory: fakeFeedback,
+          visionFactory: () => vision,
+          intersections: _testList,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('북쪽 횡단보도'));
+    await tester.pumpAndSettle();
+    expect(find.byType(GuidanceScreen), findsOneWidget);
+
+    Navigator.of(tester.element(find.byType(GuidanceScreen))).pop();
+    await tester.pumpAndSettle();
+
+    expect(vision.stopCalls, 1);
   });
 }

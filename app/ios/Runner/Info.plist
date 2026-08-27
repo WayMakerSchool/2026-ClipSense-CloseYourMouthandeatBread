@@ -6,6 +6,8 @@
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>가까운 교차로의 보행 신호를 안내하기 위해 위치 정보를 사용합니다.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>보행 신호를 확인하고 안전한 횡단 안내를 제공하기 위해 카메라를 사용합니다.</string>
 	<key>CFBundleDisplayName</key>
 	<string>Clip Sense</string>
 	<key>CFBundleExecutable</key>

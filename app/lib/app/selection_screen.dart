@@ -4,6 +4,7 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../camera/camera_vision_source.dart';
 import '../feedback/feedback_controller.dart';
 import 'guidance_controller.dart';
 import 'guidance_screen.dart';
@@ -16,11 +17,13 @@ enum _Phase { locating, chooseDirection, denied, unavailable, notFound }
 class SelectionScreen extends StatefulWidget {
   final LocationService location;
   final FeedbackController Function() feedbackFactory;
+  final VisionSource Function()? visionFactory;
   final List<Intersection> intersections;
   const SelectionScreen({
     super.key,
     required this.location,
     required this.feedbackFactory,
+    this.visionFactory,
     this.intersections = kIntersections,
   });
 
@@ -70,14 +73,18 @@ class _SelectionScreenState extends State<SelectionScreen> {
       feedback: widget.feedbackFactory(),
       itstId: it.itstId,
       direction: dir.code,
+      vision: widget.visionFactory?.call() ?? CameraVisionSource(),
     );
     Navigator.of(context)
-        .push(MaterialPageRoute(
-          builder: (_) => GuidanceScreen(controller: controller),
-        ))
+        .push(
+          MaterialPageRoute(
+            builder: (_) =>
+                GuidanceScreen(controller: controller, disposeController: true),
+          ),
+        )
         .then((_) {
-      if (mounted) _navigating = false;
-    });
+          if (mounted) _navigating = false;
+        });
   }
 
   @override
@@ -104,95 +111,109 @@ class _SelectionScreenState extends State<SelectionScreen> {
   }
 
   Widget _message(String text) => Center(
-        child: Semantics(
-          liveRegion: true,
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text(text,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    fontSize: 34,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white)),
+    child: Semantics(
+      liveRegion: true,
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Text(
+          text,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 34,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
           ),
         ),
-      );
+      ),
+    ),
+  );
 
   Widget _messageWithRetry(String text) => Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Expanded(child: _message(text)),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Semantics(
-              button: true,
-              label: '다시 시도',
-              excludeSemantics: true,
-              child: GestureDetector(
-                onTap: _locate,
-                behavior: HitTestBehavior.opaque,
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 28),
-                  color: const Color(0xFF3A3A3A),
-                  child: const Text('다시 시도',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                          fontSize: 30,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white)),
+    mainAxisAlignment: MainAxisAlignment.center,
+    children: [
+      Expanded(child: _message(text)),
+      Padding(
+        padding: const EdgeInsets.all(16),
+        child: Semantics(
+          button: true,
+          label: '다시 시도',
+          excludeSemantics: true,
+          child: GestureDetector(
+            onTap: _locate,
+            behavior: HitTestBehavior.opaque,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 28),
+              color: const Color(0xFF3A3A3A),
+              child: const Text(
+                '다시 시도',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 30,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
                 ),
               ),
             ),
           ),
-        ],
-      );
+        ),
+      ),
+    ],
+  );
 
   Widget _directionList(Intersection it) => Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Semantics(
-              liveRegion: true,
-              child: Text('${it.name}\n건널 방향을 선택하세요',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white)),
+    children: [
+      Padding(
+        padding: const EdgeInsets.all(20),
+        child: Semantics(
+          liveRegion: true,
+          child: Text(
+            '${it.name}\n건널 방향을 선택하세요',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
             ),
           ),
-          Expanded(
-            child: ListView(
-              children: [
-                for (final dir in it.directions)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 8),
-                    child: Semantics(
-                      button: true,
-                      label: dir.label,
-                      excludeSemantics: true,
-                      child: GestureDetector(
-                        onTap: () => _choose(it, dir),
-                        behavior: HitTestBehavior.opaque,
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(vertical: 32),
-                          color: const Color(0xFF0A5FA8),
-                          child: Text(dir.label,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                  fontSize: 34,
-                                  fontWeight: FontWeight.w900,
-                                  color: Colors.white)),
+        ),
+      ),
+      Expanded(
+        child: ListView(
+          children: [
+            for (final dir in it.directions)
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                child: Semantics(
+                  button: true,
+                  label: dir.label,
+                  excludeSemantics: true,
+                  child: GestureDetector(
+                    onTap: () => _choose(it, dir),
+                    behavior: HitTestBehavior.opaque,
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 32),
+                      color: const Color(0xFF0A5FA8),
+                      child: Text(
+                        dir.label,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 34,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
                         ),
                       ),
                     ),
                   ),
-              ],
-            ),
-          ),
-        ],
-      );
+                ),
+              ),
+          ],
+        ),
+      ),
+    ],
+  );
 }

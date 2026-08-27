@@ -10,9 +10,47 @@ import 'package:flutter/material.dart';
 import '../signals/judge.dart';
 import 'guidance_controller.dart';
 
-class GuidanceScreen extends StatelessWidget {
+class GuidanceScreen extends StatefulWidget {
   final GuidanceController controller;
-  const GuidanceScreen({super.key, required this.controller});
+  final bool disposeController;
+
+  /// [disposeController]는 이 화면이 컨트롤러를 만든 route일 때만 true로 둔다.
+  /// 테스트나 상위 위젯이 주입한 컨트롤러의 기존 소유권은 기본값(false)으로 유지한다.
+  const GuidanceScreen({
+    super.key,
+    required this.controller,
+    this.disposeController = false,
+  });
+
+  @override
+  State<GuidanceScreen> createState() => _GuidanceScreenState();
+}
+
+class _GuidanceScreenState extends State<GuidanceScreen>
+    with WidgetsBindingObserver {
+  GuidanceController get controller => widget.controller;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // 다른 앱·잠금화면·권한 다이얼로그로 영상 근거가 사라지면 즉시 정지한다.
+    // 복귀 후에는 사용자가 카메라를 다시 조준하고 명시적으로 시작해야 한다.
+    if (state != AppLifecycleState.resumed && controller.running) {
+      controller.stop();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    if (widget.disposeController) controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -118,14 +156,25 @@ _View _view(GuidanceController c) {
   // unknown이 아니면(walk/wait 판정이 있으면) running 여부와 무관하게 그
   // 판정을 그대로 보여준다.
   if (!c.running && c.decision == Decision.unknown) {
+    if (!c.apiConfigured) {
+      const liveLabel = '설정 오류. T-Data API 키가 없습니다. API 키를 넣어 다시 실행하세요.';
+      return _View(
+        const Color(0xFF5A5A5A),
+        '⚙️',
+        '설정 필요',
+        'T-Data API 키가 없습니다',
+        liveLabel,
+        liveLabel,
+      );
+    }
     // liveLabel(상태만)과 semanticLabel(상태+조작 안내)이 같은 문구 조각을
     // 공유 — 아래서 tapStart/tapStop을 붙여 semanticLabel을 만든다(DRY).
-    const liveLabel = '정지됨.';
+    const liveLabel = '정지됨. 뒤 카메라를 보행 신호등으로 향하세요.';
     return _View(
       const Color(0xFF222222),
       null,
       '화면을 눌러\n안내를 시작하세요',
-      null,
+      '카메라를 신호등 중앙으로',
       liveLabel,
       '$liveLabel$tapStart',
     );
@@ -133,8 +182,7 @@ _View _view(GuidanceController c) {
   switch (c.decision) {
     case Decision.walk:
       final sub = c.remainSec != null ? '${c.remainSec!.round()}초' : null;
-      final liveLabel =
-          '건너세요.${sub != null ? " $sub 남음." : ""}';
+      final liveLabel = '건너세요.${sub != null ? " $sub 남음." : ""}';
       return _View(
         const Color(0xFF0A8F3C),
         '🚶',
@@ -144,22 +192,24 @@ _View _view(GuidanceController c) {
         '$liveLabel$tapStop',
       );
     case Decision.wait:
-      const liveLabel = '기다리세요.';
+      final reason = decisionReasonText(c.reason);
+      final liveLabel = '기다리세요. $reason.';
       return _View(
         const Color(0xFFC31414),
         '✋',
         '기다리세요',
-        null,
+        reason,
         liveLabel,
         '$liveLabel$tapStop',
       );
     case Decision.unknown:
-      const liveLabel = '신호를 확인할 수 없습니다. 대기하세요.';
+      final reason = decisionReasonText(c.reason);
+      final liveLabel = '$reason. 대기하세요.';
       return _View(
         const Color(0xFF5A5A5A),
         '❓',
         '확인 불가',
-        '대기하세요',
+        reason,
         liveLabel,
         '$liveLabel$tapStop',
       );
