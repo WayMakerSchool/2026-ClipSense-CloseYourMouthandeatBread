@@ -1,0 +1,4 @@
+-r requirements.txt
+
+# 한국어 음성 WAV를 다시 생성할 때만 필요(인터넷 연결 필요).
+edge-tts==7.2.8

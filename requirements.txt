@@ -1,8 +1,9 @@
 # 런타임 (부스에서 필요)
 opencv-python==5.0.0.93
-numpy==2.5.1
+# NumPy의 마지막 지원 계열을 Python 버전별로 고정한다. 기본 macOS Python 3.9도
+# 설치 가능하고, 3.14에서는 ABI를 지원하는 최신 계열을 선택한다.
+numpy==2.0.2; python_version < "3.10"
+numpy==2.2.6; python_version >= "3.10" and python_version < "3.14"
+numpy==2.5.1; python_version >= "3.14"
 # 음성 재생: macOS는 내장 afplay 사용(설치 불필요), pygame은 비-macOS 폴백
 pygame==2.6.1
-
-# 개발 시에만 (음성 파일 생성, 인터넷 필요)
-edge-tts==7.2.8
