@@ -46,4 +46,16 @@ class FeedbackController {
       // 진동 실패도 삼킴 — 앱을 죽이지 않는다.
     }
   }
+
+  /// 안내가 멈췄음을 음성으로만 알린다. 진동은 판정 전환(walk/wait/unknown)
+  /// 채널로만 쓰므로 여기서는 울리지 않는다. 판정 전환 기억(_last)은 건드리지
+  /// 않는다 — 세션 초기화는 stop()이 reset()으로 따로 한다.
+  /// 음성 실패는 삼킨다(정지 자체는 이미 끝났다, Fail-Safe).
+  Future<void> announceStopped() async {
+    try {
+      await _speech.speak(kStoppedSpeechText);
+    } catch (_) {
+      // 음성 실패는 삼킴.
+    }
+  }
 }

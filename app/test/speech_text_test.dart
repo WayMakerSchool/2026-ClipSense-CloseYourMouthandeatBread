@@ -47,6 +47,11 @@ void main() {
     );
   });
 
+  // 정지 안내(탭·백그라운드). 전맹 사용자는 멈춘 것을 화면으로 알 수 없다.
+  test('정지 안내 문구(글자 그대로 고정)', () {
+    expect(kStoppedSpeechText, '안내를 멈췄습니다. 다시 시작하려면 화면을 한 번 누르세요.');
+  });
+
   test('API 키 누락은 일반 신호 장애와 구분한다', () {
     expect(
       speechText(Decision.unknown, reason: DecisionReason.apiKeyMissing),

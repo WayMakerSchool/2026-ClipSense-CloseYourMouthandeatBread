@@ -21,6 +21,19 @@ class FakeHaptic implements HapticOutput {
   Future<void> play(Decision d) async => played.add(d);
 }
 
+/// announceStopped 호출 횟수를 세는 Fake. 문구 조합은 실제 FeedbackController를
+/// 그대로 타게 두어(super 호출) 호출이 speech까지 닿는지도 함께 본다.
+class CountingFeedback extends FeedbackController {
+  int stoppedCalls = 0;
+  CountingFeedback(super.speech, super.haptic);
+
+  @override
+  Future<void> announceStopped() {
+    stoppedCalls++;
+    return super.announceStopped();
+  }
+}
+
 class FakeVisionSource implements VisionSource {
   SignalReading reading;
   final Completer<void>? startGate;
@@ -47,12 +60,12 @@ class FakeVisionSource implements VisionSource {
 void main() {
   late FakeSpeech speech;
   late FakeHaptic haptic;
-  late FeedbackController feedback;
+  late CountingFeedback feedback;
 
   setUp(() {
     speech = FakeSpeech();
     haptic = FakeHaptic();
-    feedback = FeedbackController(speech, haptic);
+    feedback = CountingFeedback(speech, haptic);
   });
 
   // 주입할 fetch: 지정한 SignalReading을 반환.
@@ -422,9 +435,69 @@ void main() {
 
     expect(c.running, isFalse);
     expect(c.decision, Decision.unknown);
-    expect(speech.spoken, isEmpty);
+    // 정지 음성 한 번뿐 — 늦게 도착한 초록 판정의 "건너세요"가 붙으면 안 된다.
+    expect(speech.spoken, [kStoppedSpeechText]);
     expect(haptic.played, isEmpty);
     c.dispose();
+  });
+
+  // 정지 안내: 전맹 사용자는 정지(탭·백그라운드)를 화면으로 알 수 없으므로
+  // 실행 중이던 안내가 멈출 때 한 번 말한다. 화면을 떠나는 dispose()는 말하지
+  // 않고, 이미 정지된 상태의 stop()도 말하지 않는다(중복 안내 방지).
+  group('정지 안내', () {
+    const red = SignalReading(SignalColor.red, null, SignalSource.api);
+
+    test('toggle로 정지하면 announceStopped 1회 + 정지 음성, 진동 없음', () async {
+      final c = make(red);
+      c.toggle(); // 시작
+      c.toggle(); // 정지
+      await Future<void>.delayed(Duration.zero);
+      expect(feedback.stoppedCalls, 1);
+      expect(speech.spoken, [kStoppedSpeechText]);
+      expect(haptic.played, isEmpty);
+      c.dispose();
+    });
+
+    test('시작·정지를 반복하면 정지마다 1회', () async {
+      final c = make(red);
+      c.toggle();
+      c.toggle();
+      c.toggle();
+      c.toggle();
+      await Future<void>.delayed(Duration.zero);
+      expect(feedback.stoppedCalls, 2);
+      c.dispose();
+    });
+
+    test('dispose로 화면을 떠날 때는 정지 음성이 없다', () async {
+      final c = make(red);
+      c.start();
+      c.dispose();
+      await Future<void>.delayed(Duration.zero);
+      expect(feedback.stoppedCalls, 0);
+      expect(speech.spoken, isNot(contains(kStoppedSpeechText)));
+    });
+
+    test('정지 상태에서 stop()은 announceStopped를 부르지 않는다', () async {
+      final c = make(red);
+      c.stop();
+      c.stop();
+      await Future<void>.delayed(Duration.zero);
+      expect(feedback.stoppedCalls, 0);
+      expect(speech.spoken, isEmpty);
+      c.dispose();
+    });
+
+    test('stop(announce: false)는 실행 중이어도 말하지 않는다', () async {
+      final c = make(red);
+      c.start();
+      c.stop(announce: false);
+      await Future<void>.delayed(Duration.zero);
+      expect(feedback.stoppedCalls, 0);
+      expect(c.running, isFalse);
+      expect(c.decision, Decision.unknown);
+      c.dispose();
+    });
   });
 
   test('기본 API 키가 비어 있으면 네트워크 호출 없이 원인을 명시한다', () async {

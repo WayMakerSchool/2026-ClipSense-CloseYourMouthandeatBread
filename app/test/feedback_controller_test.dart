@@ -101,6 +101,25 @@ void main() {
     expect(h.played, [Decision.walk]); // speech 실패에도 haptic 실행됨
   });
 
+  test('announceStopped: 정지 음성 1회(글자 그대로) + 진동 없음', () async {
+    final s = FakeSpeech();
+    final h = FakeHaptic();
+    final c = FeedbackController(s, h);
+    await c.announceStopped();
+    expect(s.spoken, ['안내를 멈췄습니다. 다시 시작하려면 화면을 한 번 누르세요.']);
+    expect(s.spoken.single, kStoppedSpeechText);
+    expect(h.played, isEmpty); // 정지는 판정 전환이 아니다 — 진동 채널을 쓰지 않음
+  });
+
+  test('announceStopped: speech가 async로 실패해도 밖으로 던지지 않음', () async {
+    final s = FakeSpeech()..throwAsync = true;
+    final h = FakeHaptic();
+    final c = FeedbackController(s, h);
+    await c.announceStopped(); // 예외 전파 없음(Fail-Safe)
+    expect(s.spoken.length, 1);
+    expect(h.played, isEmpty);
+  });
+
   test('unknown 전환 안내', () async {
     final s = FakeSpeech();
     final h = FakeHaptic();

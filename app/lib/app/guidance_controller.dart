@@ -89,7 +89,12 @@ class GuidanceController extends ChangeNotifier {
     unawaited(tickOnce()); // 시작 즉시 첫 확인(1초 기다리지 않음)
   }
 
-  void stop() {
+  /// 안내 정지. 실제로 실행 중이었고 [announce]면 정지 음성을 낸다(탭·
+  /// 백그라운드 정지 — 전맹 사용자가 멈춘 것을 알 수 있게). 이미 정지된 상태의
+  /// 호출은 말하지 않는다(중복 안내 방지). 화면을 떠나는 dispose() 경로는
+  /// stop()을 거치지 않으므로 말하지 않는다.
+  void stop({bool announce = true}) {
+    final wasRunning = _running;
     _timer?.cancel();
     _timer = null;
     _running = false;
@@ -102,6 +107,8 @@ class GuidanceController extends ChangeNotifier {
     _decision = Decision.unknown;
     _reason = DecisionReason.sourcesUnavailable;
     _remainSec = null;
+    // 정지 음성은 판정 정리 뒤에 — 진행 중이던 판정 음성(TTS)을 끊고 나온다.
+    if (wasRunning && announce) unawaited(_feedback.announceStopped());
     notifyListeners();
   }
 
@@ -200,6 +207,8 @@ class GuidanceController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 화면을 떠날 때의 정리. stop(announce: false)와 같은 뜻 — 정지 음성 없음
+  /// (route pop 뒤에 "안내를 멈췄습니다"가 나오면 사용자를 헷갈리게 한다).
   @override
   void dispose() {
     _disposed = true;

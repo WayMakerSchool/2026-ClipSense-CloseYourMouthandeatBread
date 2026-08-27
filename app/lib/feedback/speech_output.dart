@@ -15,6 +15,11 @@ abstract class SpeechOutput {
   Future<void> speak(String text);
 }
 
+/// 안내 정지 음성(GuidanceController.stop → FeedbackController.announceStopped).
+/// 전맹 사용자는 정지(탭·백그라운드)를 화면으로 알 수 없으므로 정지 사유와
+/// 무관하게 이 문구를 글자 그대로 말한다. speech_text_test가 고정.
+const String kStoppedSpeechText = '안내를 멈췄습니다. 다시 시작하려면 화면을 한 번 누르세요.';
+
 /// Decision → 안내 문구(순수 함수).
 ///
 /// walk에만 remainSec을 붙인다(전환 시 스냅샷 1회, 반올림 정수 초).
