@@ -21,6 +21,37 @@ import '../vision/roi_image.dart';
 import '../vision/signal_state_machine.dart';
 import 'frame_converter.dart';
 
+/// 스트림 프레임을 사용자가 기기를 든 방향 기준으로 세우기 위해 앱이 추가로
+/// 돌려야 하는 시계 방향 각도(0/90/180/270). 플랫폼별 플러그인 동작 차이를
+/// 여기서만 흡수하는 순수 함수다.
+///
+/// * Android(CameraX): 버퍼가 센서 좌표계 그대로 오므로 sensor−device만큼 돌린다.
+///   전면 카메라는 거울상이라 sensor+device.
+/// * iOS(camera_avfoundation 0.9.23+2): sensorOrientation을 90으로 고정 보고하지만
+///   (lib/src/utils.dart:17) DefaultCamera.swift updateOrientation(775-795)이
+///   AVCaptureVideoDataOutput 연결의 videoOrientation을 기기 방향으로 맞추므로
+///   스트림 픽셀버퍼가 이미 회전돼 온다. 여기서 또 돌리면 이중 회전으로 ROI가
+///   옆으로 눕는다(색은 되지만 숫자 판독 불가) → 0.
+int frameRotationDegrees({
+  required TargetPlatform platform,
+  required int sensorOrientation,
+  required DeviceOrientation deviceOrientation,
+  required CameraLensDirection lens,
+}) {
+  if (platform == TargetPlatform.iOS) return 0;
+
+  final deviceDegrees = switch (deviceOrientation) {
+    DeviceOrientation.portraitUp => 0,
+    DeviceOrientation.landscapeLeft => 90,
+    DeviceOrientation.portraitDown => 180,
+    DeviceOrientation.landscapeRight => 270,
+  };
+  if (lens == CameraLensDirection.front) {
+    return (sensorOrientation + deviceDegrees) % 360;
+  }
+  return (sensorOrientation - deviceDegrees + 360) % 360;
+}
+
 abstract interface class VisionSource {
   /// 최신 판정. 구현체는 호출 시점까지의 실제 경과 시간을 freshMs에 반영한다.
   SignalReading get latestReading;
@@ -251,17 +282,12 @@ class CameraVisionSource implements VisionSource {
   int _frameRotationDegrees() {
     final controller = _controller;
     if (controller == null) return 0;
-    final deviceDegrees = switch (controller.value.deviceOrientation) {
-      DeviceOrientation.portraitUp => 0,
-      DeviceOrientation.landscapeLeft => 90,
-      DeviceOrientation.portraitDown => 180,
-      DeviceOrientation.landscapeRight => 270,
-    };
-    final sensorDegrees = controller.description.sensorOrientation;
-    if (controller.description.lensDirection == CameraLensDirection.front) {
-      return (sensorDegrees + deviceDegrees) % 360;
-    }
-    return (sensorDegrees - deviceDegrees + 360) % 360;
+    return frameRotationDegrees(
+      platform: defaultTargetPlatform,
+      sensorOrientation: controller.description.sensorOrientation,
+      deviceOrientation: controller.value.deviceOrientation,
+      lens: controller.description.lensDirection,
+    );
   }
 
   void _resetPipeline() {
