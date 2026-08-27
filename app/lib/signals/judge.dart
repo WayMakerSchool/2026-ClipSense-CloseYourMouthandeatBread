@@ -26,6 +26,12 @@ enum DecisionReason {
   /// 취할 행동은 "신호등을 향하기".
   cameraUnavailable,
 
+  /// 카메라 권한이 거부돼 판독 자체가 불가능. [evaluate]는 판독값만 보므로 이
+  /// 값을 절대 만들지 않는다 — GuidanceController가 VisionSource 상태
+  /// (permissionDenied)를 보고 cameraUnavailable을 이 값으로 바꾼다(결정은
+  /// 그대로 wait). 사용자가 취할 행동은 "설정에서 카메라 허용".
+  cameraDenied,
+
   /// 카메라는 쓸 수 있는데 API 판독이 없음(미응답·unknown·stale). 사용자가
   /// 취할 행동은 없고 그냥 기다린다.
   apiUnavailable,
@@ -57,6 +63,8 @@ String decisionReasonText(DecisionReason reason) {
     // 들어간다(끝에 마침표를 넣으면 ".."가 된다).
     case DecisionReason.cameraUnavailable:
       return '카메라가 신호등을 찾지 못했습니다. 신호등을 향해 주세요';
+    case DecisionReason.cameraDenied:
+      return '카메라 권한이 없습니다. 설정에서 카메라를 허용해 주세요';
     case DecisionReason.apiUnavailable:
       return '신호 정보를 아직 받지 못했습니다';
     case DecisionReason.apiKeyMissing:

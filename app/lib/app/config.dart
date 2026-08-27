@@ -13,6 +13,12 @@ const String kApiKey = String.fromEnvironment('TDATA_KEY');
 /// API와 카메라가 모두 초록일 때만 보행을 허용한다.
 const bool kAllowSingleSource = false;
 
+/// 진단 스트립(카메라 프리뷰+ROI, API/카메라 상태 한 줄) 표시 여부.
+///
+/// 기본 false — 전맹 사용자용 배포 빌드에는 절대 들어가지 않는다. 시연 영상·실기기
+/// 디버깅 빌드에서만 `--dart-define=CLIP_DEBUG=true`로 켠다(app_config_test가 기본값 고정).
+const bool kClipDebug = bool.fromEnvironment('CLIP_DEBUG');
+
 /// 카메라 프레임 중앙에서 검출에 사용할 가로·세로 비율.
 ///
 /// 실측 근거(2026-08-27, 서울 보행등 근접 클립 1280x720): 중앙 50%에서는 초록 램프가

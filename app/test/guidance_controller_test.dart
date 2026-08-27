@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:camera/camera.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:clip_sense/signals/signal_reading.dart';
 import 'package:clip_sense/signals/judge.dart';
@@ -40,10 +41,25 @@ class FakeVisionSource implements VisionSource {
   int startCalls = 0;
   int stopCalls = 0;
 
-  FakeVisionSource(this.reading, {this.startGate});
+  /// 테스트가 주입하는 소스 상태·진단(권한 거부 매핑·진단 노출 검증용).
+  @override
+  VisionSourceStatus status;
+  @override
+  VisionDiagnostics? diagnostics;
+
+  FakeVisionSource(
+    this.reading, {
+    this.startGate,
+    this.status = VisionSourceStatus.idle,
+    this.diagnostics,
+  });
 
   @override
   SignalReading get latestReading => reading;
+
+  /// 위젯 테스트에서는 camera 플러그인 CameraController를 만들 수 없다.
+  @override
+  CameraController? get previewController => null;
 
   @override
   Future<void> start() async {
@@ -496,6 +512,242 @@ void main() {
       expect(feedback.stoppedCalls, 0);
       expect(c.running, isFalse);
       expect(c.decision, Decision.unknown);
+      c.dispose();
+    });
+  });
+
+  // 카메라 권한 거부: judge는 판독값만 보므로 "미인식"과 "권한 없음"을 구분할 수
+  // 없다. 컨트롤러가 VisionSource 상태를 보고 이유만 바꾼다 — 결정은 그대로
+  // wait(안전 정책 불변), 문구는 "설정에서 허용"으로 사용자가 고칠 수 있게.
+  group('카메라 권한 거부 이유 매핑', () {
+    const apiGreen = SignalReading(
+      SignalColor.green,
+      15.0,
+      SignalSource.api,
+      freshMs: 0,
+    );
+    const visionUnknown = SignalReading(
+      SignalColor.unknown,
+      null,
+      SignalSource.vision,
+    );
+
+    GuidanceController withVision(
+      FakeVisionSource vision, {
+      SignalReading apiReading = apiGreen,
+      String? apiKey,
+    }) {
+      return GuidanceController(
+        feedback: feedback,
+        itstId: '1850',
+        direction: 'st',
+        vision: vision,
+        apiKey: apiKey ?? 'test-key',
+        fetch: (itstId, direction, apiKey, {required nowMs}) async =>
+            apiReading,
+      );
+    }
+
+    test('status=permissionDenied → 이유 cameraDenied, 결정은 wait', () async {
+      final vision = FakeVisionSource(
+        visionUnknown,
+        status: VisionSourceStatus.permissionDenied,
+      );
+      final c = withVision(vision);
+
+      await c.tickOnce();
+
+      expect(c.decision, Decision.wait);
+      expect(c.reason, DecisionReason.cameraDenied);
+      expect(c.remainSec, isNull);
+      expect(speech.spoken.single, '카메라 권한이 없습니다. 설정에서 카메라를 허용해 주세요. 기다리세요');
+      c.dispose();
+    });
+
+    test('status=streaming(미인식) → 이유는 cameraUnavailable 유지', () async {
+      final vision = FakeVisionSource(
+        visionUnknown,
+        status: VisionSourceStatus.streaming,
+      );
+      final c = withVision(vision);
+
+      await c.tickOnce();
+
+      expect(c.decision, Decision.wait);
+      expect(c.reason, DecisionReason.cameraUnavailable);
+      c.dispose();
+    });
+
+    test('starting·unavailable·failed·idle도 cameraUnavailable 유지', () async {
+      for (final status in [
+        VisionSourceStatus.idle,
+        VisionSourceStatus.starting,
+        VisionSourceStatus.unavailable,
+        VisionSourceStatus.failed,
+      ]) {
+        final c = withVision(FakeVisionSource(visionUnknown, status: status));
+        await c.tickOnce();
+        expect(c.decision, Decision.wait, reason: '$status');
+        expect(c.reason, DecisionReason.cameraUnavailable, reason: '$status');
+        c.dispose();
+      }
+    });
+
+    test('권한 거부여도 카메라 판독이 살아 있으면(이유가 카메라 불가가 아니면) 매핑하지 않는다', () async {
+      // 상태가 잘못 남아 있어도 judge 결과가 cameraUnavailable일 때만 바꾼다.
+      final vision = FakeVisionSource(
+        const SignalReading(SignalColor.red, null, SignalSource.vision),
+        status: VisionSourceStatus.permissionDenied,
+      );
+      final c = withVision(vision);
+
+      await c.tickOnce();
+
+      expect(c.decision, Decision.wait);
+      expect(c.reason, DecisionReason.conflict);
+      c.dispose();
+    });
+
+    test('API 키 누락이 권한 거부보다 우선한다', () async {
+      final vision = FakeVisionSource(
+        visionUnknown,
+        status: VisionSourceStatus.permissionDenied,
+      );
+      final c = GuidanceController(
+        feedback: feedback,
+        itstId: '1850',
+        direction: 'st',
+        vision: vision,
+        apiKey: '',
+      );
+
+      await c.tickOnce();
+
+      expect(c.decision, Decision.unknown);
+      expect(c.reason, DecisionReason.apiKeyMissing);
+      c.dispose();
+    });
+
+    test('권한 거부 → 허용 후 재시작하면 다시 미인식 이유로 돌아온다', () async {
+      final vision = FakeVisionSource(
+        visionUnknown,
+        status: VisionSourceStatus.permissionDenied,
+      );
+      final c = withVision(vision);
+
+      await c.tickOnce();
+      expect(c.reason, DecisionReason.cameraDenied);
+
+      vision.status = VisionSourceStatus.streaming;
+      await c.tickOnce();
+      expect(c.reason, DecisionReason.cameraUnavailable);
+      c.dispose();
+    });
+  });
+
+  // 진단 노출: 화면 진단 스트립(디버그 빌드)이 "API는 뭐라 했고 카메라는 뭐라
+  // 했는지"를 그리기 위한 읽기 전용 값. 판정에는 관여하지 않는다.
+  group('진단 노출', () {
+    const apiGreen = SignalReading(
+      SignalColor.green,
+      12.3,
+      SignalSource.api,
+      freshMs: 0,
+    );
+    const visionGreen = SignalReading(
+      SignalColor.green,
+      11.0,
+      SignalSource.vision,
+      freshMs: 0,
+    );
+    const diag = VisionDiagnostics(
+      lastReason: '',
+      areaRatio: 0.024,
+      brightness: 130,
+      processMs: 31,
+      framesProcessed: 42,
+      lastFrameAgeMs: 120,
+    );
+
+    test('초기: 판독·상태 없음(카메라 미주입)', () {
+      final c = make(apiGreen);
+      expect(c.lastApiReading, isNull);
+      expect(c.lastVisionReading, isNull);
+      expect(c.visionStatus, isNull);
+      expect(c.visionDiagnostics, isNull);
+      expect(c.visionPreviewController, isNull);
+      c.dispose();
+    });
+
+    test('tick 뒤 마지막 API·카메라 판독과 소스 상태·진단을 노출한다', () async {
+      final vision = FakeVisionSource(
+        visionGreen,
+        status: VisionSourceStatus.streaming,
+        diagnostics: diag,
+      );
+      final c = GuidanceController(
+        feedback: feedback,
+        itstId: '1850',
+        direction: 'st',
+        vision: vision,
+        fetch: (itstId, direction, apiKey, {required nowMs}) async => apiGreen,
+      );
+
+      await c.tickOnce();
+
+      expect(c.lastApiReading, same(apiGreen));
+      expect(c.lastVisionReading, same(visionGreen));
+      expect(c.visionStatus, VisionSourceStatus.streaming);
+      expect(c.visionDiagnostics, same(diag));
+      // Fake는 CameraController를 만들 수 없어 항상 null(프리뷰는 실기기 확인).
+      expect(c.visionPreviewController, isNull);
+      c.dispose();
+    });
+
+    test('fetch 실패 틱은 API 판독을 null로 남긴다', () async {
+      final vision = FakeVisionSource(
+        visionGreen,
+        status: VisionSourceStatus.streaming,
+      );
+      final c = GuidanceController(
+        feedback: feedback,
+        itstId: '1850',
+        direction: 'st',
+        vision: vision,
+        fetch: (itstId, direction, apiKey, {required nowMs}) async =>
+            throw Exception('network'),
+      );
+
+      await c.tickOnce();
+
+      expect(c.decision, Decision.unknown);
+      expect(c.lastApiReading, isNull);
+      c.dispose();
+    });
+
+    test('stop()은 마지막 판독을 지운다(정지 후 오래된 값 노출 금지)', () async {
+      final vision = FakeVisionSource(
+        visionGreen,
+        status: VisionSourceStatus.streaming,
+        diagnostics: diag,
+      );
+      final c = GuidanceController(
+        feedback: feedback,
+        itstId: '1850',
+        direction: 'st',
+        vision: vision,
+        fetch: (itstId, direction, apiKey, {required nowMs}) async => apiGreen,
+      );
+
+      c.start();
+      await c.tickOnce();
+      expect(c.lastApiReading, isNotNull);
+      expect(c.lastVisionReading, isNotNull);
+
+      c.stop();
+
+      expect(c.lastApiReading, isNull);
+      expect(c.lastVisionReading, isNull);
       c.dispose();
     });
   });

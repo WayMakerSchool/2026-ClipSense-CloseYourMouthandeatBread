@@ -1,3 +1,4 @@
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:clip_sense/signals/signal_reading.dart';
@@ -7,6 +8,7 @@ import 'package:clip_sense/feedback/haptic_output.dart';
 import 'package:clip_sense/feedback/feedback_controller.dart';
 import 'package:clip_sense/app/guidance_controller.dart';
 import 'package:clip_sense/app/guidance_screen.dart';
+import 'package:clip_sense/camera/camera_vision_source.dart';
 
 class FakeSpeech implements SpeechOutput {
   final List<String> spoken = [];
@@ -19,10 +21,37 @@ class FakeHaptic implements HapticOutput {
   Future<void> play(Decision d) async {}
 }
 
+/// 진단 스트립 검증용. camera 플러그인 CameraController는 위젯 테스트에서 만들
+/// 수 없으므로 previewController는 항상 null(프리뷰 없는 텍스트 스트립 경로).
+class FakeVisionSource implements VisionSource {
+  @override
+  final SignalReading latestReading;
+  @override
+  final VisionSourceStatus status;
+  @override
+  final VisionDiagnostics? diagnostics;
+
+  FakeVisionSource(
+    this.latestReading, {
+    required this.status,
+    this.diagnostics,
+  });
+
+  @override
+  CameraController? get previewController => null;
+
+  @override
+  Future<void> start() async {}
+
+  @override
+  Future<void> stop() async {}
+}
+
 GuidanceController makeController(
   SignalReading reading, {
   FakeSpeech? speech,
   bool allowSingleSource = true,
+  VisionSource? vision,
 }) {
   return GuidanceController(
     feedback: FeedbackController(speech ?? FakeSpeech(), FakeHaptic()),
@@ -31,6 +60,7 @@ GuidanceController makeController(
     // 이 파일은 화면 표현만 검증한다. 엄격 AND 배선은 controller 테스트에서
     // FakeVisionSource로 별도 검증한다(카메라 미인식 문구 테스트만 엄격 모드).
     allowSingleSource: allowSingleSource,
+    vision: vision,
     fetch: (itstId, direction, apiKey, {required nowMs}) async => reading,
   );
 }
@@ -232,6 +262,194 @@ void main() {
     expect(find.textContaining('건너세요'), findsNothing);
 
     c.dispose();
+  });
+
+  // 진단 스트립: --dart-define=CLIP_DEBUG=true 빌드에서만. 전맹 사용자용 기본
+  // 화면(큰 버튼·Semantics·탭 영역)은 그대로 두고, 시연·실기기 디버깅용으로
+  // 하단에 프리뷰+한 줄 상태를 겹쳐 그린다. 스크린리더에는 절대 노출하지 않는다.
+  group('진단 스트립', () {
+    final strip = find.byKey(const Key('debugStrip'));
+    const apiGreen = SignalReading(
+      SignalColor.green,
+      12.3,
+      SignalSource.api,
+      freshMs: 0,
+    );
+    const visionGreen = SignalReading(
+      SignalColor.green,
+      11.0,
+      SignalSource.vision,
+      freshMs: 0,
+    );
+    const diag = VisionDiagnostics(
+      lastReason: '',
+      areaRatio: 0.024,
+      brightness: 130,
+      processMs: 31,
+      framesProcessed: 42,
+      lastFrameAgeMs: 120,
+    );
+
+    testWidgets('기본(debug=false): 스트립이 위젯 트리에 없다', (tester) async {
+      final c = makeController(
+        apiGreen,
+        allowSingleSource: false,
+        vision: FakeVisionSource(
+          visionGreen,
+          status: VisionSourceStatus.streaming,
+          diagnostics: diag,
+        ),
+      );
+      await tester.pumpWidget(MaterialApp(home: GuidanceScreen(controller: c)));
+      await c.tickOnce();
+      await tester.pump();
+
+      expect(strip, findsNothing);
+      expect(find.textContaining('신선'), findsNothing);
+      // 화면 자체에는 ExcludeSemantics가 없다(route의 ModalBarrier가 넣는 것은
+      // 이 화면 밖이라 제외).
+      expect(
+        find.descendant(
+          of: find.byType(GuidanceScreen),
+          matching: find.byType(ExcludeSemantics),
+        ),
+        findsNothing,
+      );
+      c.dispose();
+    });
+
+    testWidgets('debug=true: 텍스트 스트립 표시·프리뷰 없음·스크린리더 제외', (tester) async {
+      final c = makeController(
+        apiGreen,
+        allowSingleSource: false,
+        vision: FakeVisionSource(
+          visionGreen,
+          status: VisionSourceStatus.streaming,
+          diagnostics: diag,
+        ),
+      );
+      await tester.pumpWidget(
+        MaterialApp(home: GuidanceScreen(controller: c, debug: true)),
+      );
+      await c.tickOnce();
+      await tester.pump();
+
+      expect(strip, findsOneWidget);
+      expect(find.byType(CameraPreview), findsNothing);
+      expect(
+        find.text('API 초록 12.3s · 카메라 초록 2.4% streaming · 31ms · 신선 120ms'),
+        findsOneWidget,
+      );
+      // 스트립 전체가 ExcludeSemantics 아래 — 상태 텍스트가 접근성 트리에 없다.
+      expect(
+        find.ancestor(of: strip, matching: find.byType(ExcludeSemantics)),
+        findsOneWidget,
+      );
+      expect(find.bySemanticsLabel(RegExp('신선')), findsNothing);
+      // 큰 버튼의 Semantics는 그대로(walk 판정 + 조작 안내).
+      final label = tester.getSemantics(buttonSemantics).label;
+      expect(label, contains('건너세요'));
+      expect(label, contains('두 번 탭하면'));
+      // 스트립 높이는 화면의 35% 이하.
+      final screen = tester.getSize(find.byType(GuidanceScreen));
+      expect(
+        tester.getSize(strip).height,
+        lessThanOrEqualTo(screen.height * 0.35),
+      );
+      c.dispose();
+    });
+
+    testWidgets('debug=true: 스트립 위를 탭해도 큰 버튼이 받는다(탭 영역 불변)', (tester) async {
+      final c = makeController(
+        const SignalReading(SignalColor.red, null, SignalSource.api),
+        vision: FakeVisionSource(
+          visionGreen,
+          status: VisionSourceStatus.streaming,
+          diagnostics: diag,
+        ),
+      );
+      await tester.pumpWidget(
+        MaterialApp(home: GuidanceScreen(controller: c, debug: true)),
+      );
+      expect(c.running, isFalse);
+
+      final screen = tester.getSize(find.byType(GuidanceScreen));
+      await tester.tapAt(Offset(screen.width / 2, screen.height - 8));
+      await tester.pump();
+
+      expect(c.running, isTrue);
+      c.stop();
+      c.dispose();
+    });
+
+    testWidgets('debug=true: 값이 없으면 "—"로 채운다(카메라 미주입)', (tester) async {
+      final c = makeController(
+        const SignalReading(SignalColor.red, null, SignalSource.api),
+      );
+      await tester.pumpWidget(
+        MaterialApp(home: GuidanceScreen(controller: c, debug: true)),
+      );
+
+      expect(strip, findsOneWidget);
+      expect(find.text('API — · 카메라 — — — · — · 신선 —'), findsOneWidget);
+      c.dispose();
+    });
+
+    // 한 줄 문구는 순수 함수로 고정한다(화면 테스트와 같은 포맷).
+    group('diagnosticsLine', () {
+      test('전부 있음', () {
+        expect(
+          diagnosticsLine(
+            api: apiGreen,
+            vision: visionGreen,
+            status: VisionSourceStatus.streaming,
+            diagnostics: diag,
+          ),
+          'API 초록 12.3s · 카메라 초록 2.4% streaming · 31ms · 신선 120ms',
+        );
+      });
+
+      test('전부 없음', () {
+        expect(diagnosticsLine(), 'API — · 카메라 — — — · — · 신선 —');
+      });
+
+      test('이유·밝기가 있으면 뒤에 붙인다(너무 어두움 진단)', () {
+        expect(
+          diagnosticsLine(
+            api: const SignalReading(SignalColor.red, null, SignalSource.api),
+            vision: const SignalReading(
+              SignalColor.unknown,
+              null,
+              SignalSource.vision,
+            ),
+            status: VisionSourceStatus.streaming,
+            diagnostics: const VisionDiagnostics(
+              lastReason: 'too_dark',
+              areaRatio: 0.003,
+              brightness: 21.4,
+              processMs: 8,
+              framesProcessed: 3,
+              lastFrameAgeMs: null,
+            ),
+          ),
+          'API 빨강 — · 카메라 없음 0.3% streaming · 8ms · 신선 — · too_dark · 밝기 21',
+        );
+      });
+
+      test('색 이름: 점멸·권한 거부 상태', () {
+        expect(
+          diagnosticsLine(
+            vision: const SignalReading(
+              SignalColor.clearance,
+              null,
+              SignalSource.vision,
+            ),
+            status: VisionSourceStatus.permissionDenied,
+          ),
+          'API — · 카메라 점멸 — permissionDenied · — · 신선 —',
+        );
+      });
+    });
   });
 
   // 앱 생명주기. 정지는 화면이 실제로 가려지는 paused/hidden/detached에서만.

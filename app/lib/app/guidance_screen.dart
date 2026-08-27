@@ -3,16 +3,32 @@
 ///
 /// 전맹 사용자에겐 엔진 음성/햅틱이 이미 전달된다. 이 시각 표시는 저시력·도우미용,
 /// Semantics 라벨은 전맹 사용자의 화면 조작(시작/정지 확인)용.
+///
+/// [GuidanceScreen.debug](기본 kClipDebug)일 때만 하단에 진단 스트립(카메라
+/// 프리뷰+ROI 사각형, API/카메라 상태 한 줄)을 겹쳐 그린다 — 시연 영상에서
+/// "이중 판정"을 보이고 실기기에서 카메라가 왜 안 되는지 보기 위한 것이다.
+/// 스크린리더에는 노출하지 않고(ExcludeSemantics) 탭도 통과시켜(IgnorePointer)
+/// 큰 버튼의 탭 영역·Semantics는 그대로다. 기본 빌드에서는 위젯 트리가 같다.
 library;
 
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 
+import '../camera/camera_vision_source.dart';
 import '../signals/judge.dart';
+import '../signals/signal_reading.dart';
+import 'config.dart';
 import 'guidance_controller.dart';
+
+/// 진단 스트립이 차지할 수 있는 최대 높이(화면 높이 비율).
+const double _kDebugStripMaxFrac = 0.35;
 
 class GuidanceScreen extends StatefulWidget {
   final GuidanceController controller;
   final bool disposeController;
+
+  /// 진단 스트립 표시. 기본은 빌드 플래그(kClipDebug) — 배포 빌드에서는 false.
+  final bool debug;
 
   /// [disposeController]는 이 화면이 컨트롤러를 만든 route일 때만 true로 둔다.
   /// 테스트나 상위 위젯이 주입한 컨트롤러의 기존 소유권은 기본값(false)으로 유지한다.
@@ -20,6 +36,7 @@ class GuidanceScreen extends StatefulWidget {
     super.key,
     required this.controller,
     this.disposeController = false,
+    this.debug = kClipDebug,
   });
 
   @override
@@ -70,73 +87,204 @@ class _GuidanceScreenState extends State<GuidanceScreen>
       animation: controller,
       builder: (context, _) {
         final v = _view(controller);
-        return Scaffold(
-          body: GestureDetector(
-            onTap: controller.toggle,
-            behavior: HitTestBehavior.opaque,
-            // 버튼(탭 동작 + 상태 요약)과 상태 라이브 리전을 형제 노드로 분리.
-            // 버튼 쪽 Semantics는 excludeSemantics로 내부 Text들의 개별 낭독을
-            // 막아 라벨 하나로만 읽히게 하되, 상태 텍스트는 별도의
-            // liveRegion 노드로 두어 excludeSemantics에 가려지지 않게 한다
-            // (spec §4.3: 상태 전환 시 스크린리더가 재포커스 없이 자동 낭독).
-            child: Semantics(
-              key: const Key('guidanceButtonSemantics'),
-              button: true,
-              container: true,
-              label: v.semanticLabel,
-              child: Container(
-                color: v.bg,
-                width: double.infinity,
-                height: double.infinity,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Semantics(
-                      excludeSemantics: true,
-                      child: v.icon != null
-                          ? Text(v.icon!, style: const TextStyle(fontSize: 96))
-                          : const SizedBox.shrink(),
-                    ),
-                    const SizedBox(height: 16),
-                    Semantics(
-                      key: const Key('guidanceLiveRegionSemantics'),
-                      liveRegion: true,
-                      container: true,
-                      label: v.liveLabel,
-                      excludeSemantics: true,
-                      child: Column(
-                        children: [
+        final button = GestureDetector(
+          onTap: controller.toggle,
+          behavior: HitTestBehavior.opaque,
+          // 버튼(탭 동작 + 상태 요약)과 상태 라이브 리전을 형제 노드로 분리.
+          // 버튼 쪽 Semantics는 excludeSemantics로 내부 Text들의 개별 낭독을
+          // 막아 라벨 하나로만 읽히게 하되, 상태 텍스트는 별도의
+          // liveRegion 노드로 두어 excludeSemantics에 가려지지 않게 한다
+          // (spec §4.3: 상태 전환 시 스크린리더가 재포커스 없이 자동 낭독).
+          child: Semantics(
+            key: const Key('guidanceButtonSemantics'),
+            button: true,
+            container: true,
+            label: v.semanticLabel,
+            child: Container(
+              color: v.bg,
+              width: double.infinity,
+              height: double.infinity,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Semantics(
+                    excludeSemantics: true,
+                    child: v.icon != null
+                        ? Text(v.icon!, style: const TextStyle(fontSize: 96))
+                        : const SizedBox.shrink(),
+                  ),
+                  const SizedBox(height: 16),
+                  Semantics(
+                    key: const Key('guidanceLiveRegionSemantics'),
+                    liveRegion: true,
+                    container: true,
+                    label: v.liveLabel,
+                    excludeSemantics: true,
+                    child: Column(
+                      children: [
+                        Text(
+                          v.title,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 56,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                          ),
+                        ),
+                        if (v.sub != null) ...[
+                          const SizedBox(height: 12),
                           Text(
-                            v.title,
+                            v.sub!,
                             textAlign: TextAlign.center,
                             style: const TextStyle(
-                              fontSize: 56,
-                              fontWeight: FontWeight.w900,
+                              fontSize: 34,
+                              fontWeight: FontWeight.w800,
                               color: Colors.white,
                             ),
                           ),
-                          if (v.sub != null) ...[
-                            const SizedBox(height: 12),
-                            Text(
-                              v.sub!,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                fontSize: 34,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
                         ],
-                      ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
         );
+        if (!widget.debug) return Scaffold(body: button);
+        // 진단 스트립은 큰 버튼 "위"에 겹친다(버튼 자체는 위와 동일한 트리).
+        return Scaffold(
+          body: Stack(
+            fit: StackFit.expand,
+            children: [
+              button,
+              _DebugStrip(controller: controller),
+            ],
+          ),
+        );
       },
+    );
+  }
+}
+
+/// 진단 스트립 한 줄(순수 함수, 화면 테스트와 같은 포맷). 예:
+/// "API 초록 12.3s · 카메라 초록 2.4% streaming · 31ms · 신선 120ms".
+/// 값이 없으면 '—'. 카메라가 NONE인 이유(too_dark 등)가 있으면 이유와 밝기를
+/// 뒤에 붙여 "왜 안 잡히는지"를 실기기에서 바로 볼 수 있게 한다.
+String diagnosticsLine({
+  SignalReading? api,
+  SignalReading? vision,
+  VisionSourceStatus? status,
+  VisionDiagnostics? diagnostics,
+}) {
+  const dash = '—';
+  final apiRemain = api?.remainSec;
+  final apiPart = api == null
+      ? 'API $dash'
+      : 'API ${_colorName(api.color)} '
+            '${apiRemain == null ? dash : '${apiRemain.toStringAsFixed(1)}s'}';
+  final area = diagnostics?.areaRatio;
+  final cameraPart =
+      '카메라 ${vision == null ? dash : _colorName(vision.color)} '
+      '${area == null ? dash : '${(area * 100).toStringAsFixed(1)}%'} '
+      '${status?.name ?? dash}';
+  final processPart = diagnostics == null ? dash : '${diagnostics.processMs}ms';
+  final age = diagnostics?.lastFrameAgeMs;
+  final freshPart = '신선 ${age == null ? dash : '${age}ms'}';
+
+  final line = StringBuffer(
+    '$apiPart · $cameraPart · $processPart · $freshPart',
+  );
+  final reason = diagnostics?.lastReason ?? '';
+  if (reason.isNotEmpty) {
+    line.write(' · $reason');
+    final brightness = diagnostics?.brightness;
+    if (brightness != null) line.write(' · 밝기 ${brightness.round()}');
+  }
+  return line.toString();
+}
+
+String _colorName(SignalColor color) => switch (color) {
+  SignalColor.green => '초록',
+  SignalColor.red => '빨강',
+  SignalColor.clearance => '점멸',
+  SignalColor.unknown => '없음',
+};
+
+/// 화면 하단 진단 스트립(디버그 빌드 전용). 프리뷰(있을 때만)+ROI 사각형 위에
+/// 상태 한 줄. 스크린리더 제외·탭 통과 — 전맹 사용자용 큰 버튼은 그대로다.
+class _DebugStrip extends StatelessWidget {
+  final GuidanceController controller;
+
+  const _DebugStrip({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    final preview = controller.visionPreviewController;
+    final line = diagnosticsLine(
+      api: controller.lastApiReading,
+      vision: controller.lastVisionReading,
+      status: controller.visionStatus,
+      diagnostics: controller.visionDiagnostics,
+    );
+    final maxHeight = MediaQuery.sizeOf(context).height * _kDebugStripMaxFrac;
+    return ExcludeSemantics(
+      child: IgnorePointer(
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          child: Container(
+            key: const Key('debugStrip'),
+            width: double.infinity,
+            constraints: BoxConstraints(maxHeight: maxHeight),
+            color: const Color(0xCC000000),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 스트리밍 중에만 non-null. 폐기된 컨트롤러는 절대 그리지 않는다.
+                if (preview != null && preview.value.isInitialized)
+                  Flexible(
+                    child: CameraPreview(preview, child: const _RoiOverlay()),
+                  ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 6,
+                  ),
+                  child: Text(
+                    line,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 프리뷰 위에 검출 ROI(중앙 kRoiFrac 비율)를 얇은 테두리로 겹친다.
+/// CameraPreview의 child는 프리뷰와 같은 AspectRatio 박스를 꽉 채우므로 비율
+/// 좌표가 프레임 좌표와 일치한다(frame_converter의 중앙 crop과 같은 비율).
+class _RoiOverlay extends StatelessWidget {
+  const _RoiOverlay();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: FractionallySizedBox(
+        widthFactor: kRoiFrac,
+        heightFactor: kRoiFrac,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            border: Border.all(color: const Color(0xFFFFEB3B), width: 1.5),
+          ),
+        ),
+      ),
     );
   }
 }

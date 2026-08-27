@@ -13,4 +13,10 @@ void main() {
     expect(kCameraProcessEveryN, 3);
     expect(kCameraResolutionPreset, 'medium');
   });
+
+  // 진단 스트립은 --dart-define=CLIP_DEBUG=true 빌드에서만 켜진다. 기본 빌드
+  // (전맹 사용자용 배포)에는 프리뷰·상태 텍스트가 절대 들어가면 안 된다.
+  test('진단 플래그 기본값은 꺼짐', () {
+    expect(kClipDebug, isFalse);
+  });
 }

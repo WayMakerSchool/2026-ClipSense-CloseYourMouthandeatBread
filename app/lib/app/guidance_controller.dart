@@ -6,6 +6,7 @@ library;
 
 import 'dart:async';
 
+import 'package:camera/camera.dart' show CameraController;
 import 'package:flutter/foundation.dart';
 
 import '../camera/camera_vision_source.dart';
@@ -44,6 +45,8 @@ class GuidanceController extends ChangeNotifier {
   Decision _decision = Decision.unknown;
   DecisionReason _reason = DecisionReason.sourcesUnavailable;
   double? _remainSec;
+  SignalReading? _lastApiReading;
+  SignalReading? _lastVisionReading;
 
   GuidanceController({
     required FeedbackController feedback,
@@ -79,6 +82,16 @@ class GuidanceController extends ChangeNotifier {
   DecisionReason get reason => _reason;
   double? get remainSec => _remainSec;
 
+  /// 진단용(디버그 스트립). 마지막 틱이 판정에 실제로 쓴 API·카메라 판독 —
+  /// 판정에는 관여하지 않는다. fetch 실패 틱과 정지 뒤에는 null.
+  SignalReading? get lastApiReading => _lastApiReading;
+  SignalReading? get lastVisionReading => _lastVisionReading;
+
+  /// 카메라 소스 상태·진단·프리뷰(소스에 위임, 카메라 미주입이면 null).
+  VisionSourceStatus? get visionStatus => _vision?.status;
+  VisionDiagnostics? get visionDiagnostics => _vision?.diagnostics;
+  CameraController? get visionPreviewController => _vision?.previewController;
+
   void start() {
     if (_running) return;
     _running = true;
@@ -107,6 +120,8 @@ class GuidanceController extends ChangeNotifier {
     _decision = Decision.unknown;
     _reason = DecisionReason.sourcesUnavailable;
     _remainSec = null;
+    _lastApiReading = null;
+    _lastVisionReading = null;
     // 정지 음성은 판정 정리 뒤에 — 진행 중이던 판정 음성(TTS)을 끊고 나온다.
     if (wasRunning && announce) unawaited(_feedback.announceStopped());
     notifyListeners();
@@ -166,6 +181,8 @@ class GuidanceController extends ChangeNotifier {
   Future<void> _performTick(int? generation) async {
     DecisionResult result;
     double? remain;
+    SignalReading? apiUsed;
+    SignalReading? visionUsed;
     try {
       final nowMs = DateTime.now().millisecondsSinceEpoch;
       final apiReading = _apiConfigured
@@ -180,6 +197,15 @@ class GuidanceController extends ChangeNotifier {
         needSec: kNeedSec,
         allowSingleSource: _allowSingleSource,
       );
+      apiUsed = apiReading;
+      visionUsed = visionReading;
+      // 카메라 권한 거부: judge는 판독값만 보므로 "미인식"과 구분할 수 없다.
+      // 소스 상태가 permissionDenied이고 judge가 카메라 불가라 했을 때만 이유를
+      // 바꾼다 — 결정(wait)은 그대로(안전 정책 불변), 문구만 "설정에서 허용".
+      if (result.reason == DecisionReason.cameraUnavailable &&
+          _vision?.status == VisionSourceStatus.permissionDenied) {
+        result = DecisionResult(result.decision, DecisionReason.cameraDenied);
+      }
       if (!_apiConfigured) {
         result = DecisionResult(result.decision, DecisionReason.apiKeyMissing);
       }
@@ -198,6 +224,8 @@ class GuidanceController extends ChangeNotifier {
     _decision = result.decision;
     _reason = result.reason;
     _remainSec = remain;
+    _lastApiReading = apiUsed;
+    _lastVisionReading = visionUsed;
     await _feedback.onDecision(
       result.decision,
       remainSec: remain,

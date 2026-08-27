@@ -40,6 +40,14 @@ void main() {
     );
   });
 
+  // 권한 거부는 사용자가 설정에서 고쳐야 한다 — 미인식 문구와 구분해서 말한다.
+  test('wait + 카메라 권한 거부: 설정에서 허용하라는 안내', () {
+    expect(
+      speechText(Decision.wait, reason: DecisionReason.cameraDenied),
+      '카메라 권한이 없습니다. 설정에서 카메라를 허용해 주세요. 기다리세요',
+    );
+  });
+
   test('wait + API 불가: 신호 정보를 아직 못 받음', () {
     expect(
       speechText(Decision.wait, reason: DecisionReason.apiUnavailable),

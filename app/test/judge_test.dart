@@ -262,6 +262,43 @@ void main() {
     });
   });
 
+  // 카메라 권한 거부는 "신호등을 향하라"로는 못 고친다 — 설정에서 허용해야
+  // 한다. 이 이유는 judge가 아니라 컨트롤러가 VisionSource 상태를 보고 매핑한다
+  // (evaluate는 판독값만 보므로 권한 여부를 알 수 없고, 판정 로직은 불변).
+  group('카메라 권한 거부 이유', () {
+    test('문구: 설정에서 카메라를 허용하라는 안내(끝 마침표 없음)', () {
+      expect(
+        decisionReasonText(DecisionReason.cameraDenied),
+        '카메라 권한이 없습니다. 설정에서 카메라를 허용해 주세요',
+      );
+    });
+
+    test('evaluate는 cameraDenied를 절대 반환하지 않는다', () {
+      const colors = SignalColor.values;
+      final readings = <SignalReading?>[null];
+      for (final color in colors) {
+        for (final remain in [null, 3.0, 30.0]) {
+          for (final fresh in [0, 5000]) {
+            readings.add(api(color, remain: remain, fresh: fresh));
+            readings.add(vis(color, remain: remain, fresh: fresh));
+          }
+        }
+      }
+      for (final a in readings) {
+        for (final v in readings) {
+          for (final single in [false, true]) {
+            final result = evaluate(a, v, allowSingleSource: single);
+            expect(
+              result.reason,
+              isNot(DecisionReason.cameraDenied),
+              reason: 'api=$a vision=$v allowSingleSource=$single',
+            );
+          }
+        }
+      }
+    });
+  });
+
   group('비정상 수치 fail-safe', () {
     test('NaN·Infinity·음수 잔여시간은 walk 근거가 아니다', () {
       for (final malformed in [double.nan, double.infinity, -1.0]) {
