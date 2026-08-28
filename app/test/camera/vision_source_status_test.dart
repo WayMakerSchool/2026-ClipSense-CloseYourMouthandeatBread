@@ -109,4 +109,39 @@ void main() {
     expect(source.diagnostics, isNull);
     expect(source.previewController, isNull);
   });
+
+  group('정지 중 초기화 실패는 상태를 덮지 않는다', () {
+    test('start 직후 stop이 들어오면 실패해도 idle로 남는다', () async {
+      final source = CameraVisionSource(
+        cameraLister: () async {
+          throw CameraException('CameraAccessDenied', 'denied');
+        },
+      );
+      final started = source.start();
+      final stopped = source.stop(); // 초기화 진행 중 정지
+      await started;
+      await stopped;
+      expect(source.status, VisionSourceStatus.idle);
+      expect(source.previewController, isNull);
+    });
+
+    test('정지 요청이 없으면 실패 상태가 남는다', () async {
+      final source = CameraVisionSource(
+        cameraLister: () async {
+          throw CameraException('CameraAccessDenied', 'denied');
+        },
+      );
+      await source.start();
+      expect(source.status, VisionSourceStatus.permissionDenied);
+      await source.stop();
+      expect(source.status, VisionSourceStatus.idle);
+    });
+
+    test('카메라가 없으면 unavailable', () async {
+      final source = CameraVisionSource(cameraLister: () async => const []);
+      await source.start();
+      expect(source.status, VisionSourceStatus.unavailable);
+      await source.stop();
+    });
+  });
 }

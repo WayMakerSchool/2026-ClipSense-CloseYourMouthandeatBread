@@ -234,12 +234,18 @@ class CameraVisionSource implements VisionSource {
   int? _diagnosticsElapsedMs;
   int _framesProcessed = 0;
 
+  /// 사용 가능한 카메라 목록 조회. 테스트가 플랫폼 채널 없이 초기화 실패
+  /// 경로를 재현할 수 있도록 주입 가능하게 둔다(기본은 플러그인 함수).
+  final Future<List<CameraDescription>> Function() _cameraLister;
+
   CameraVisionSource({
     DetectorConfig config = const DetectorConfig.defaults(),
     double roiFrac = kRoiFrac,
     int processEveryN = kCameraProcessEveryN,
+    Future<List<CameraDescription>> Function()? cameraLister,
   }) : assert(roiFrac > 0 && roiFrac <= 1),
        assert(processEveryN > 0),
+       _cameraLister = cameraLister ?? availableCameras,
        _config = config,
        _roiFrac = roiFrac,
        _processEveryN = processEveryN,
@@ -332,7 +338,7 @@ class CameraVisionSource implements VisionSource {
 
     _status = VisionSourceStatus.starting;
     try {
-      final cameras = await availableCameras();
+      final cameras = await _cameraLister();
       if (!_desiredRunning) {
         _invalidateReading();
         _status = VisionSourceStatus.idle;
@@ -375,7 +381,10 @@ class CameraVisionSource implements VisionSource {
     } catch (e) {
       // 실패 상태는 다음 start()/stop()까지 남는다 — 컨트롤러가 권한 거부를
       // 구분해 말하고, 진단 스트립이 원인을 보여 준다. 판정은 unknown(fail-safe).
-      _status = statusFromCameraError(e);
+      // 단, 초기화 도중 stop()이 들어왔다면 이미 정지한 것이므로 idle을 지킨다.
+      _status = _desiredRunning
+          ? statusFromCameraError(e)
+          : VisionSourceStatus.idle;
       _invalidateReading();
       await _releaseController();
     }
@@ -426,7 +435,11 @@ class CameraVisionSource implements VisionSource {
       // 함께 비운다. 다음 정상 프레임은 다시 debounce를 통과해야 한다.
       _resetPipeline();
       _invalidateReading();
-      _recordDiagnostics(null, stopwatch.elapsedMilliseconds);
+      // 진단은 판정과 무관한 부산물이다. 여기서 던지면 플러그인 스트림
+      // 콜백으로 예외가 새어 나가므로 별도로 삼킨다.
+      try {
+        _recordDiagnostics(null, stopwatch.elapsedMilliseconds);
+      } catch (_) {}
     } finally {
       _processingFrame = false;
     }
