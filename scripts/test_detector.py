@@ -90,6 +90,36 @@ check("히스테리시스: 검출 중 작은 blob 유지",
       r_big.raw == RAW_GREEN and r_small_after.raw == RAW_GREEN,
       f"실제: {r_big.raw} → {r_small_after.raw}")
 
+
+# --- 7세그 숫자 획 배제: 신호등 램프는 정사각형에 가깝고, 카운트다운 숫자는 세로로 길다 ---
+# 실클립 실측(data/real_signal_clip.mp4, ROI 25%): 초록 램프 종횡비 0.48~0.92,
+# 빨간 7세그 숫자 획 0.12~0.42 → 임계 0.45로 분리(양쪽 여유).
+def bar(color, w, h):
+    """세로로 긴 막대(7세그 숫자 획 모사)."""
+    f = np.full((SIZE, SIZE, 3), 80, np.uint8)
+    x0, y0 = (SIZE - w) // 2, (SIZE - h) // 2
+    cv2.rectangle(f, (x0, y0), (x0 + w, y0 + h), color, -1)
+    return f
+
+
+det_bar = ColorDetector(CFG)
+r_bar = det_bar.detect(bar(RED, 12, 60))   # 종횡비 0.20, 면적 1.8% (임계 통과)
+check("세로로 긴 빨간 획(숫자)은 신호등이 아니다 → NONE",
+      r_bar.raw == RAW_NONE,
+      f"실제: {r_bar.raw} area={r_bar.red.area_ratio:.4f} ar={r_bar.red.aspect_ratio:.2f}")
+
+det_sq = ColorDetector(CFG)
+r_sq = det_sq.detect(bar(RED, 40, 45))     # 종횡비 0.89 (램프 모양)
+check("정사각형에 가까운 빨간 blob은 램프로 인정 → RED",
+      r_sq.raw == RAW_RED,
+      f"실제: {r_sq.raw} ar={r_sq.red.aspect_ratio:.2f}")
+
+det_wide = ColorDetector(CFG)
+r_wide = det_wide.detect(bar(GREEN, 60, 12))  # 가로로 긴 것도 램프 아님(종횡비 5.0)
+check("가로로 긴 초록 blob도 램프가 아니다 → NONE",
+      r_wide.raw == RAW_NONE,
+      f"실제: {r_wide.raw} ar={r_wide.green.aspect_ratio:.2f}")
+
 print("=" * 50)
 if FAILURES:
     print(f"FAIL {len(FAILURES)}건: {FAILURES}")

@@ -40,6 +40,7 @@ class ColorStat:
     """한 색상 마스크의 분석 결과."""
     area_ratio: float = 0.0     # 최대 blob 면적 / ROI 면적
     circularity: float = 0.0    # 4πA/P² (원=1.0, 보행자 아이콘은 낮음)
+    aspect_ratio: float = 0.0   # bbox 가로/세로 (램프≈1, 7세그 숫자 획은 가늘고 김)
     valid: bool = False
 
 
@@ -79,6 +80,9 @@ class ColorDetector:
         self.max_area_ratio = cfg["max_area_ratio"]
         # 참고: 차량 신호(원형)는 0.6+, 보행자 아이콘(사람 모양)은 0.2~0.4 수준
         self.min_circularity = cfg["min_circularity"]
+        # 램프 bbox 종횡비 허용 범위(7세그 숫자 획 배제). 실측 근거는 _analyze 주석.
+        self.min_aspect_ratio = cfg.get("min_aspect_ratio", 0.45)
+        self.max_aspect_ratio = cfg.get("max_aspect_ratio", 2.2)
         self.min_brightness = cfg["min_brightness"]
         self.brightness_jump = cfg["brightness_jump"]
         self.ema_alpha = cfg["brightness_ema_alpha"]
@@ -111,9 +115,16 @@ class ColorDetector:
         circularity = (4 * np.pi * area / (perimeter * perimeter)
                        if perimeter > 0 else 0.0)
         area_ratio = area / roi_area
+        _, _, bw, bh = cv2.boundingRect(largest)
+        aspect_ratio = bw / bh if bh > 0 else 0.0
+        # 신호등 램프는 bbox가 정사각형에 가깝다. 잔여시간 7세그 숫자의 획은
+        # 가늘고 길어(실측 0.12~0.42) 면적·원형도만으로는 걸러지지 않는다.
+        # ROI를 좁힐수록 숫자가 면적 기준을 넘기므로 형태로 배제한다.
+        shape_ok = (self.min_aspect_ratio <= aspect_ratio
+                    <= self.max_aspect_ratio)
         valid = (min_area_ratio <= area_ratio <= self.max_area_ratio
-                 and circularity >= self.min_circularity)
-        return ColorStat(area_ratio, circularity, valid)
+                 and circularity >= self.min_circularity and shape_ok)
+        return ColorStat(area_ratio, circularity, aspect_ratio, valid)
 
     def detect(self, roi_bgr: np.ndarray) -> FrameResult:
         blurred = cv2.GaussianBlur(roi_bgr, (5, 5), 0)

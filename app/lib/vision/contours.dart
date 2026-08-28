@@ -17,6 +17,20 @@ class Contour {
 
   int get length => xs.length;
   bool get isEmpty => xs.isEmpty;
+
+  /// OpenCV `boundingRect`와 같은 폭·높이(끝점 포함: max - min + 1).
+  /// 신호등 램프와 7세그 숫자 획을 형태로 구분하는 데 쓴다.
+  (int width, int height) get boundingSize {
+    if (xs.isEmpty) return (0, 0);
+    var minX = xs[0], maxX = xs[0], minY = ys[0], maxY = ys[0];
+    for (var i = 1; i < xs.length; i++) {
+      if (xs[i] < minX) minX = xs[i];
+      if (xs[i] > maxX) maxX = xs[i];
+      if (ys[i] < minY) minY = ys[i];
+      if (ys[i] > maxY) maxY = ys[i];
+    }
+    return (maxX - minX + 1, maxY - minY + 1);
+  }
 }
 
 /// 8-이웃 오프셋(시계방향, 동쪽에서 시작). Moore tracing 순서.

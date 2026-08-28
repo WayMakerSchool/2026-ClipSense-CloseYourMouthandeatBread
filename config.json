@@ -3,8 +3,30 @@
   "digit_roi": null,
   "digits": {
     "red_hsv": [
-      { "lower": [0, 100, 80], "upper": [10, 255, 255] },
-      { "lower": [170, 100, 80], "upper": [180, 255, 255] }
+      {
+        "lower": [
+          0,
+          100,
+          80
+        ],
+        "upper": [
+          10,
+          255,
+          255
+        ]
+      },
+      {
+        "lower": [
+          170,
+          100,
+          80
+        ],
+        "upper": [
+          180,
+          255,
+          255
+        ]
+      }
     ],
     "seg_on_ratio": 0.5,
     "seg_off_ratio": 0.2,
@@ -16,16 +38,51 @@
   },
   "hsv": {
     "red": [
-      { "lower": [0, 55, 45], "upper": [12, 255, 255] },
-      { "lower": [165, 55, 45], "upper": [180, 255, 255] }
+      {
+        "lower": [
+          0,
+          55,
+          45
+        ],
+        "upper": [
+          12,
+          255,
+          255
+        ]
+      },
+      {
+        "lower": [
+          165,
+          55,
+          45
+        ],
+        "upper": [
+          180,
+          255,
+          255
+        ]
+      }
     ],
     "green": [
-      { "lower": [35, 45, 45], "upper": [100, 255, 255] }
+      {
+        "lower": [
+          35,
+          45,
+          45
+        ],
+        "upper": [
+          100,
+          255,
+          255
+        ]
+      }
     ]
   },
   "min_area_ratio": 0.005,
   "max_area_ratio": 0.6,
   "min_circularity": 0.12,
+  "min_aspect_ratio": 0.45,
+  "max_aspect_ratio": 2.2,
   "min_brightness": 35,
   "brightness_jump": 60,
   "brightness_ema_alpha": 0.05,

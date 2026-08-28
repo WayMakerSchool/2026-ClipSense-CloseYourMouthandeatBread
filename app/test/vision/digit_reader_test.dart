@@ -30,7 +30,9 @@ void drawSevenSegment(
   for (var i = 0; i < text.length; i++) {
     final d = int.parse(text[i]);
     // DIGIT_PATTERNS에서 값이 d인 첫 키를 찾아 그 문자 집합을 켠다.
-    final patternKey = kDigitPatterns.entries.firstWhere((e) => e.value == d).key;
+    final patternKey = kDigitPatterns.entries
+        .firstWhere((e) => e.value == d)
+        .key;
     final on = patternKey.split('').toSet();
     final ox = x + i * (digitW + gap);
     final segRects = <String, List<int>>{
@@ -99,7 +101,12 @@ RoiImage _blankImage(int w, int h, {int bg = 0}) {
 }
 
 /// _cell(number, cell_w, cell_h) 이식: 단일 숫자 셀을 pad=4로 딱 맞게 렌더링.
-RoiImage cellImage(int number, int cellW, int cellH, {List<int> color = digitRed}) {
+RoiImage cellImage(
+  int number,
+  int cellW,
+  int cellH, {
+  List<int> color = digitRed,
+}) {
   const pad = 4;
   final w = cellW + 2 * pad;
   final h = cellH + 2 * pad;
@@ -121,7 +128,18 @@ RoiImage multiDigitImage(
   final w = text.length * digitW + (text.length - 1) * gap + 2 * pad;
   final h = digitH + 2 * pad;
   final img = _blankImage(w, h);
-  drawSevenSegment(img.bytes, w, h, number, pad, pad, digitW, digitH, digitRed, gap: gap);
+  drawSevenSegment(
+    img.bytes,
+    w,
+    h,
+    number,
+    pad,
+    pad,
+    digitW,
+    digitH,
+    digitRed,
+    gap: gap,
+  );
   return img;
 }
 

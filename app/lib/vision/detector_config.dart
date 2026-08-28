@@ -16,6 +16,11 @@ class DetectorConfig {
   final double minAreaRatio;
   final double maxAreaRatio;
   final double minCircularity;
+
+  /// 램프 bbox 종횡비(가로/세로) 허용 범위. 신호등 램프는 정사각형에
+  /// 가깝고(실측 0.48~0.92), 잔여시간 7세그 숫자 획은 가늘고 길다(0.12~0.42).
+  final double minAspectRatio;
+  final double maxAspectRatio;
   final double minBrightness;
   final double brightnessJump;
   final double brightnessEmaAlpha;
@@ -41,6 +46,8 @@ class DetectorConfig {
     required this.minAreaRatio,
     required this.maxAreaRatio,
     required this.minCircularity,
+    this.minAspectRatio = 0.45,
+    this.maxAspectRatio = 2.2,
     required this.minBrightness,
     required this.brightnessJump,
     required this.brightnessEmaAlpha,
@@ -61,33 +68,37 @@ class DetectorConfig {
   });
 
   const DetectorConfig.defaults()
-      : hsvRed = const [
-          HsvRange([0, 55, 45], [12, 255, 255]),
-          HsvRange([165, 55, 45], [180, 255, 255]),
-        ],
-        hsvGreen = const [HsvRange([35, 45, 45], [100, 255, 255])],
-        digitRedHsv = const [
-          HsvRange([0, 100, 80], [10, 255, 255]),
-          HsvRange([170, 100, 80], [180, 255, 255]),
-        ],
-        minAreaRatio = 0.005,
-        maxAreaRatio = 0.6,
-        minCircularity = 0.12,
-        minBrightness = 35,
-        brightnessJump = 60,
-        brightnessEmaAlpha = 0.05,
-        validExitFactor = 0.6,
-        morphKernel = 5,
-        debounceFrames = 8,
-        blinkWindowSeconds = 2.0,
-        blinkMinToggles = 3,
-        blinkMinSegmentSeconds = 0.15,
-        unknownAfterSeconds = 1.5,
-        segOnRatio = 0.5,
-        segOffRatio = 0.2,
-        minCellFill = 0.08,
-        maxCellFill = 0.65,
-        maxCellAspect = 0.82,
-        stableWindow = 5,
-        stableVotes = 3;
+    : hsvRed = const [
+        HsvRange([0, 55, 45], [12, 255, 255]),
+        HsvRange([165, 55, 45], [180, 255, 255]),
+      ],
+      hsvGreen = const [
+        HsvRange([35, 45, 45], [100, 255, 255]),
+      ],
+      digitRedHsv = const [
+        HsvRange([0, 100, 80], [10, 255, 255]),
+        HsvRange([170, 100, 80], [180, 255, 255]),
+      ],
+      minAreaRatio = 0.005,
+      maxAreaRatio = 0.6,
+      minCircularity = 0.12,
+      minAspectRatio = 0.45,
+      maxAspectRatio = 2.2,
+      minBrightness = 35,
+      brightnessJump = 60,
+      brightnessEmaAlpha = 0.05,
+      validExitFactor = 0.6,
+      morphKernel = 5,
+      debounceFrames = 8,
+      blinkWindowSeconds = 2.0,
+      blinkMinToggles = 3,
+      blinkMinSegmentSeconds = 0.15,
+      unknownAfterSeconds = 1.5,
+      segOnRatio = 0.5,
+      segOffRatio = 0.2,
+      minCellFill = 0.08,
+      maxCellFill = 0.65,
+      maxCellAspect = 0.82,
+      stableWindow = 5,
+      stableVotes = 3;
 }

@@ -15,9 +15,9 @@ RoiImage solid(int w, int h, int b, int g, int r) {
 void main() {
   test('순수 빨강 BGR(0,0,255) → H≈0, S=255, V=255', () {
     final hsv = bgrToHsv(solid(2, 2, 0, 0, 255));
-    expect(hsv[0], closeTo(0, 1));   // H
-    expect(hsv[1], 255);             // S
-    expect(hsv[2], 255);             // V
+    expect(hsv[0], closeTo(0, 1)); // H
+    expect(hsv[1], 255); // S
+    expect(hsv[2], 255); // V
   });
 
   test('순수 초록 BGR(0,255,0) → H≈60', () {

@@ -8,7 +8,9 @@ const rawRed = 'RED', rawGreen = 'GREEN', rawNone = 'NONE';
 
 // (지속초, raw[, reason]) 시퀀스를 fps로 주입 → 전환 리스트.
 (List<Transition>, SignalStateMachine) run(
-    double fps, List<List<dynamic>> segments) {
+  double fps,
+  List<List<dynamic>> segments,
+) {
   final sm = SignalStateMachine(const DetectorConfig.defaults());
   final trs = <Transition>[];
   var frame = 0;
@@ -43,7 +45,10 @@ List<String> statesOf(List<Transition> trs) =>
 void main() {
   test('기본 사이클 30fps: RED→GREEN→BLINK→RED', () {
     final (trs, _) = run(30, [
-      [5, rawRed], [4, rawGreen], ...blinkSegments(3), [4, rawRed],
+      [5, rawRed],
+      [4, rawGreen],
+      ...blinkSegments(3),
+      [4, rawRed],
     ]);
     expect(statesOf(trs), [stateRed, stateGreen, stateGreenBlink, stateRed]);
   });
@@ -51,10 +56,12 @@ void main() {
   test('15fps / 60fps에서도 같은 사이클', () {
     for (final fps in [15.0, 60.0]) {
       final (trs, _) = run(fps, [
-        [5, rawRed], [4, rawGreen], ...blinkSegments(3), [4, rawRed],
+        [5, rawRed],
+        [4, rawGreen],
+        ...blinkSegments(3),
+        [4, rawRed],
       ]);
-      expect(
-          statesOf(trs), [stateRed, stateGreen, stateGreenBlink, stateRed]);
+      expect(statesOf(trs), [stateRed, stateGreen, stateGreenBlink, stateRed]);
     }
   });
 
@@ -68,13 +75,19 @@ void main() {
   });
 
   test('점멸 후 안정 초록 복귀', () {
-    final (trs, _) =
-        run(30, [[4, rawGreen], ...blinkSegments(3), [5, rawGreen]]);
+    final (trs, _) = run(30, [
+      [4, rawGreen],
+      ...blinkSegments(3),
+      [5, rawGreen],
+    ]);
     expect(statesOf(trs), [stateGreen, stateGreenBlink, stateGreen]);
   });
 
   test('점멸 중 UNKNOWN 없음', () {
-    final (trs, _) = run(30, [[4, rawGreen], ...blinkSegments(6)]);
+    final (trs, _) = run(30, [
+      [4, rawGreen],
+      ...blinkSegments(6),
+    ]);
     expect(statesOf(trs).contains(stateUnknown), isFalse);
   });
 
@@ -96,8 +109,10 @@ void main() {
   });
 
   test('느린 점멸 플래핑 없음', () {
-    final (trs, _) =
-        run(30, [[4, rawGreen], ...blinkSegments(6, period: 1.5)]);
+    final (trs, _) = run(30, [
+      [4, rawGreen],
+      ...blinkSegments(6, period: 1.5),
+    ]);
     expect(statesOf(trs), [stateGreen, stateGreenBlink]);
   });
 
@@ -127,7 +142,7 @@ void main() {
 
   test('판정 보류 NONE은 점멸로 안 잡힘', () {
     final banding = <List<dynamic>>[
-      [3, rawGreen]
+      [3, rawGreen],
     ];
     for (var i = 0; i < 6; i++) {
       banding.addAll([
@@ -141,7 +156,7 @@ void main() {
 
   test('실제 소등 패턴은 여전히 점멸 감지', () {
     final realBlink = <List<dynamic>>[
-      [3, rawGreen]
+      [3, rawGreen],
     ];
     for (var i = 0; i < 6; i++) {
       realBlink.addAll([

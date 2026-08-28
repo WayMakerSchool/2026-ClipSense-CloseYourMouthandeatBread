@@ -90,29 +90,35 @@ void main() {
     expect(findContours(m, 50, 50), isEmpty);
   });
 
-  test('이미지 좌측 경계에 붙은 사각 blob → contour 1개, 닫힘(면적>0), circularity isFinite', () {
-    // x=0 경계에 flush로 붙은 채운 사각형: ROI 경계에 걸친 신호 blob 근사.
-    final m = filledRect(100, 100, 0, 30, 20, 70);
-    final cs = findContours(m, 100, 100);
-    expect(cs.length, 1);
-    final area = contourArea(cs.first);
-    expect(area, greaterThan(0.0));
-    final c = circularity(cs.first);
-    expect(c.isFinite, isTrue);
-    expect(c.isNaN, isFalse);
-  });
+  test(
+    '이미지 좌측 경계에 붙은 사각 blob → contour 1개, 닫힘(면적>0), circularity isFinite',
+    () {
+      // x=0 경계에 flush로 붙은 채운 사각형: ROI 경계에 걸친 신호 blob 근사.
+      final m = filledRect(100, 100, 0, 30, 20, 70);
+      final cs = findContours(m, 100, 100);
+      expect(cs.length, 1);
+      final area = contourArea(cs.first);
+      expect(area, greaterThan(0.0));
+      final c = circularity(cs.first);
+      expect(c.isFinite, isTrue);
+      expect(c.isNaN, isFalse);
+    },
+  );
 
-  test('상단 행 중앙에 걸친 반원형 blob(top border) → contour 1개, 닫힘, circularity isFinite', () {
-    // y=0 행에서 잘린 반원: 위쪽 경계에 걸친 blob 근사.
-    final w = 100, h = 100;
-    final m = filledCircle(w, h, 50, 0, 20);
-    final cs = findContours(m, w, h);
-    expect(cs.length, 1);
-    final area = contourArea(cs.first);
-    expect(area, greaterThan(0.0));
-    final c = circularity(cs.first);
-    expect(c.isFinite, isTrue);
-  });
+  test(
+    '상단 행 중앙에 걸친 반원형 blob(top border) → contour 1개, 닫힘, circularity isFinite',
+    () {
+      // y=0 행에서 잘린 반원: 위쪽 경계에 걸친 blob 근사.
+      final w = 100, h = 100;
+      final m = filledCircle(w, h, 50, 0, 20);
+      final cs = findContours(m, w, h);
+      expect(cs.length, 1);
+      final area = contourArea(cs.first);
+      expect(area, greaterThan(0.0));
+      final c = circularity(cs.first);
+      expect(c.isFinite, isTrue);
+    },
+  );
 
   test('NaN 가드: 1px 선의 circularity는 항상 isFinite(>= minCircularity 비교를 보호)', () {
     // perimeter는 >0일 수 있으나 area=0인 케이스에서도 circularity가
@@ -126,7 +132,11 @@ void main() {
     final cs = findContours(m, 100, 100);
     expect(cs.length, 1);
     final c = circularity(cs.first);
-    expect(c.isFinite, isTrue, reason: 'circularity must never be NaN/Infinity');
+    expect(
+      c.isFinite,
+      isTrue,
+      reason: 'circularity must never be NaN/Infinity',
+    );
     // NaN 비교는 항상 false이므로, 안전 쪽으로도 확인: 임계값 비교가
     // 정상적으로 false로 판정되는지(오검출 없이 "원이 아님"으로 거부됨).
     expect(c >= 0.7, isFalse);

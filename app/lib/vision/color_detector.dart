@@ -27,11 +27,13 @@ const String rawNone = 'NONE';
 class ColorStat {
   final double areaRatio; // 최대 blob 면적 / ROI 면적
   final double circularity; // 4πA/P² (원=1.0, 보행자 아이콘은 낮음)
+  final double aspectRatio; // bbox 가로/세로 (램프≈1, 7세그 숫자 획은 가늘고 김)
   final bool valid;
 
   const ColorStat({
     this.areaRatio = 0.0,
     this.circularity = 0.0,
+    this.aspectRatio = 0.0,
     this.valid = false,
   });
 }
@@ -94,11 +96,25 @@ class ColorDetector {
         ? (4 * 3.141592653589793 * area / (perimeter * perimeter))
         : 0.0;
     final areaRatio = area / roiArea;
+    final (bw, bh) = largest.boundingSize;
+    final aspectRatio = bh > 0 ? bw / bh : 0.0;
+    // 신호등 램프는 bbox가 정사각형에 가깝다. 잔여시간 7세그 숫자의 획은
+    // 가늘고 길어(실측 0.12~0.42) 면적·원형도만으로는 걸러지지 않는다.
+    // ROI를 좁힐수록 숫자가 면적 기준을 넘기므로 형태로 배제한다.
+    final shapeOk =
+        _cfg.minAspectRatio <= aspectRatio &&
+        aspectRatio <= _cfg.maxAspectRatio;
     final valid =
         minAreaRatio <= areaRatio &&
         areaRatio <= _cfg.maxAreaRatio &&
-        circ >= _cfg.minCircularity;
-    return ColorStat(areaRatio: areaRatio, circularity: circ, valid: valid);
+        circ >= _cfg.minCircularity &&
+        shapeOk;
+    return ColorStat(
+      areaRatio: areaRatio,
+      circularity: circ,
+      aspectRatio: aspectRatio,
+      valid: valid,
+    );
   }
 
   double _thr(String colorRaw) => _lastRaw == colorRaw

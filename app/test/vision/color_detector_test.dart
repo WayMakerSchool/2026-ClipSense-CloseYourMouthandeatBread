@@ -38,6 +38,26 @@ const red = [40, 40, 235];
 const redDim = [30, 30, 120]; // 어두운 빨강(밝기 급변 없이 blob_too_large 테스트용)
 const green = [70, 210, 80];
 
+// 세로/가로로 긴 막대(7세그 숫자 획 모사). test_detector.py bar() 미러링.
+RoiImage bar(List<int> bgr, int w, int h, {int bg = 80}) {
+  final bytes = Uint8List(size * size * 3);
+  for (var i = 0; i < size * size; i++) {
+    bytes[i * 3] = bg;
+    bytes[i * 3 + 1] = bg;
+    bytes[i * 3 + 2] = bg;
+  }
+  final x0 = (size - w) ~/ 2, y0 = (size - h) ~/ 2;
+  for (var y = y0; y <= y0 + h && y < size; y++) {
+    for (var x = x0; x <= x0 + w && x < size; x++) {
+      final idx = (y * size + x) * 3;
+      bytes[idx] = bgr[0];
+      bytes[idx + 1] = bgr[1];
+      bytes[idx + 2] = bgr[2];
+    }
+  }
+  return RoiImage(size, size, bytes);
+}
+
 void main() {
   test('1. 빈 회색 프레임 → NONE/no_blob (EMA 초기화)', () {
     final d = ColorDetector(const DetectorConfig.defaults());
@@ -82,23 +102,58 @@ void main() {
   });
 
   group('7. 검출 히스테리시스', () {
-    test(
-        '진입 임계(0.5%) 미달이지만 이탈 임계(0.3%) 이상인 작은 초록 blob은 '
+    test('진입 임계(0.5%) 미달이지만 이탈 임계(0.3%) 이상인 작은 초록 blob은 '
         '직전에 GREEN이었을 때만 유지된다', () {
       final d = ColorDetector(const DetectorConfig.defaults());
       d.detect(frame()); // EMA 초기화, last=NONE
-      final rSmallFirst =
-          d.detect(frame(circleBgr: green, r: 7)); // 0.38% < 0.5% → NONE
+      final rSmallFirst = d.detect(
+        frame(circleBgr: green, r: 7),
+      ); // 0.38% < 0.5% → NONE
       final rBig = d.detect(frame(circleBgr: green, r: 25)); // 확실한 GREEN
-      final rSmallAfter =
-          d.detect(frame(circleBgr: green, r: 7)); // 0.38% ≥ 0.3% → 유지
+      final rSmallAfter = d.detect(
+        frame(circleBgr: green, r: 7),
+      ); // 0.38% ≥ 0.3% → 유지
 
-      expect(rSmallFirst.raw, rawNone,
-          reason: '진입 전 작은 blob 거부 (실제: ${rSmallFirst.raw}, '
-              'area_ratio=${rSmallFirst.green.areaRatio})');
+      expect(
+        rSmallFirst.raw,
+        rawNone,
+        reason:
+            '진입 전 작은 blob 거부 (실제: ${rSmallFirst.raw}, '
+            'area_ratio=${rSmallFirst.green.areaRatio})',
+      );
       expect(rBig.raw, rawGreen);
-      expect(rSmallAfter.raw, rawGreen,
-          reason: '검출 중 작은 blob 유지 (실제: ${rBig.raw} -> ${rSmallAfter.raw})');
+      expect(
+        rSmallAfter.raw,
+        rawGreen,
+        reason: '검출 중 작은 blob 유지 (실제: ${rBig.raw} -> ${rSmallAfter.raw})',
+      );
+    });
+  });
+
+  group('7세그 숫자 획 배제 (bbox 종횡비)', () {
+    // 실클립 실측(data/real_signal_clip.mp4, ROI 25%): 초록 램프 종횡비
+    // 0.48~0.92, 빨간 7세그 숫자 획 0.12~0.42 → 임계 0.45로 분리.
+    test('세로로 긴 빨간 획(숫자)은 신호등이 아니다 → NONE', () {
+      final d = ColorDetector(const DetectorConfig.defaults());
+      final r = d.detect(bar(red, 12, 60));
+      expect(
+        r.raw,
+        rawNone,
+        reason: 'area=${r.red.areaRatio} ar=${r.red.aspectRatio}',
+      );
+      expect(r.red.aspectRatio, lessThan(0.45));
+    });
+
+    test('정사각형에 가까운 빨간 blob은 램프로 인정 → RED', () {
+      final d = ColorDetector(const DetectorConfig.defaults());
+      final r = d.detect(bar(red, 40, 45));
+      expect(r.raw, rawRed, reason: 'ar=${r.red.aspectRatio}');
+    });
+
+    test('가로로 긴 초록 blob도 램프가 아니다 → NONE', () {
+      final d = ColorDetector(const DetectorConfig.defaults());
+      final r = d.detect(bar(green, 60, 12));
+      expect(r.raw, rawNone, reason: 'ar=${r.green.aspectRatio}');
     });
   });
 }
