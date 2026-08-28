@@ -156,4 +156,25 @@ void main() {
       expect(r.raw, rawNone, reason: 'ar=${r.green.aspectRatio}');
     });
   });
+
+  group('야간: 어두운 배경 + 선명한 램프', () {
+    // ROI 평균 밝기는 야간에 당연히 낮다(배경이 어둡다). 램프가 또렷한데도
+    // too_dark로 판정을 포기하면 야간에는 늘 "확인할 수 없습니다"가 된다.
+    test('아주 어두운 배경에서도 초록 램프를 잡는다', () {
+      final d = ColorDetector(const DetectorConfig.defaults());
+      final r = d.detect(frame(bg: 8, circleBgr: green, r: 25));
+      expect(
+        r.raw,
+        rawGreen,
+        reason: '${r.raw}/${r.reason} area=${r.green.areaRatio}',
+      );
+    });
+
+    test('어둡고 램프도 없으면 too_dark', () {
+      final d = ColorDetector(const DetectorConfig.defaults());
+      final r = d.detect(frame(bg: 8));
+      expect(r.raw, rawNone);
+      expect(r.reason, 'too_dark');
+    });
+  });
 }

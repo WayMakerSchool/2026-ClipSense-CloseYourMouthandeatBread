@@ -120,6 +120,23 @@ check("가로로 긴 초록 blob도 램프가 아니다 → NONE",
       r_wide.raw == RAW_NONE,
       f"실제: {r_wide.raw} ar={r_wide.green.aspect_ratio:.2f}")
 
+# --- 야간: 배경이 어두워도 램프가 선명하면 판정한다 ---
+# ROI 평균 밝기는 야간에 당연히 낮다(배경이 어둡다). 램프가 또렷하게 보이는데도
+# too_dark로 판정을 포기하면 야간에는 늘 "확인할 수 없습니다"가 된다.
+# 밝기 게이트는 "볼 것이 없어서 어두운" 경우에만 걸려야 한다.
+det_night = ColorDetector(CFG)
+night = frame(bg=8, circle=(GREEN, 25))  # 아주 어두운 배경 + 밝은 초록 램프
+r_night = det_night.detect(night)
+check("야간(어두운 배경 + 선명한 램프) → GREEN",
+      r_night.raw == RAW_GREEN,
+      f"실제: {r_night.raw}/{r_night.reason} area={r_night.green.area_ratio:.4f}")
+
+det_black = ColorDetector(CFG)
+r_black = det_black.detect(frame(bg=8))  # 어둡고 램프도 없음
+check("어둡고 램프도 없으면 too_dark",
+      r_black.raw == RAW_NONE and r_black.reason == "too_dark",
+      f"실제: {r_black.raw}/{r_black.reason}")
+
 print("=" * 50)
 if FAILURES:
     print(f"FAIL {len(FAILURES)}건: {FAILURES}")

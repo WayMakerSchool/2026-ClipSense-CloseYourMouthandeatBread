@@ -150,7 +150,12 @@ class ColorDetector:
         green = self._analyze(green_mask, roi_area, thr(RAW_GREEN))
 
         reason = ""
-        if brightness < self.min_brightness:
+        # 밝기 게이트는 "볼 것이 없어서 어두운" 경우에만 건다. 야간에는 배경이
+        # 어두운 것이 정상이고, LED 램프는 그 속에서 오히려 또렷하다. 유효한
+        # blob이 이미 잡혔는데 평균 밝기만으로 판정을 포기하면 야간에는 늘
+        # "확인할 수 없습니다"가 된다.
+        has_lamp = red.valid or green.valid
+        if brightness < self.min_brightness and not has_lamp:
             raw, reason = RAW_NONE, "too_dark"
         elif jumped:
             raw, reason = RAW_NONE, "brightness_jump"

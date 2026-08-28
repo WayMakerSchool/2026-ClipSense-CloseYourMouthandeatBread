@@ -2,7 +2,8 @@
 /// detector.py의 ColorDetector 이식.
 ///
 /// 신뢰도 낮은 프레임은 정직하게 NONE 처리한다 (reason에 근거 기록):
-/// - too_dark: ROI 평균 밝기가 임계 미만 (렌즈/ROI 가림)
+/// - too_dark: ROI 평균 밝기가 임계 미만이면서 유효 blob도 없음 (렌즈/ROI 가림).
+///   야간처럼 배경만 어둡고 램프가 또렷하면 정상 판정한다.
 /// - brightness_jump: 평균 밝기가 이동평균 대비 급변 (가림/조명 급변 순간)
 /// - blob_too_large: 검출 blob이 ROI 대부분을 덮음 (신호등이 아닌 물체)
 /// - no_blob: 유효한 색상 blob 없음
@@ -151,7 +152,12 @@ class ColorDetector {
 
     String raw;
     var reason = '';
-    if (brightness < _cfg.minBrightness) {
+    // 밝기 게이트는 "볼 것이 없어서 어두운" 경우에만 건다. 야간에는 배경이
+    // 어두운 것이 정상이고, LED 램프는 그 속에서 오히려 또렷하다. 유효한
+    // blob이 이미 잡혔는데 평균 밝기만으로 판정을 포기하면 야간에는 늘
+    // "확인할 수 없습니다"가 된다.
+    final hasLamp = red.valid || green.valid;
+    if (brightness < _cfg.minBrightness && !hasLamp) {
       raw = rawNone;
       reason = 'too_dark';
     } else if (jumped) {
