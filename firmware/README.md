@@ -1,0 +1,198 @@
+# ClipSense 클립 카메라 펌웨어
+
+옷깃에 다는 클립형 카메라(XIAO ESP32S3 Sense)가 보행 신호등을 촬영해 HTTP
+스냅샷으로 넘긴다. **판정은 하지 않는다** — 신호 색·잔여시간 판단과 이중 검증은
+폰/브라우저 쪽 판정 엔진이 맡고, 이 펌웨어는 "정직한 프레임"을 공급하는 역할만
+한다.
+
+> **상태:** 사양 확정·구현 완료·컴파일 검증 완료. **실기기 미검증** — 보드가
+> 확보되기 전이라 업로드·촬영·발열·연속 동작은 측정하지 않았다. 아래 "실기기
+> 검증 전 주장하지 않는 것"을 참고할 것.
+
+설계 근거: `ClipSense 하드웨어 최종설계·제작 보고서 v0.2` §9~§10.
+
+## 이 펌웨어가 지키는 원칙
+
+판정 계층과 같은 원칙을 하드웨어 쪽에서도 지킨다.
+
+| 원칙 | 구현 |
+|---|---|
+| 오래된 프레임을 새 것처럼 보내지 않음 | 획득 실패 시 캐시된 JPEG을 재전송하지 않고 **503** 반환 |
+| 프레임과 메타데이터를 함께 묶음 | JPEG·`captureUptimeUs`·`frameSeq`를 카메라 mutex 안에서 원자적으로 결합 |
+| 진행 여부를 판정 쪽이 확인 가능 | `frameSeq`는 **새 JPEG 획득 성공 시에만** 증가 → 정지(freeze) 감지 가능 |
+| 재부팅을 숨기지 않음 | `bootId`가 부팅마다 바뀜 → 판정 쪽이 uptime 비교 이력을 폐기 |
+| 무인증 공개 카메라를 만들지 않음 | 모든 데이터 엔드포인트에 기기 토큰 요구, CORS 와일드카드 금지 |
+| 촬영 중임을 숨기지 않음 | 촬영 시 LED 점등 |
+
+## 하드웨어
+
+- **보드**: Seeed Studio XIAO ESP32S3 Sense (8MB OPI PSRAM)
+- **카메라**: 확장보드 기본 OV2640 또는 OV3660 (DVP)
+- **전원**: USB 5V (예선 구성 `BENCH_E2E`)
+- **부품 목록**: `ClipSense_BOM_v0.2.csv` 참고
+
+배선은 XIAO ESP32S3 Sense 확장보드에 카메라 FPC를 꽂는 것이 전부다. 핀맵은
+`config.h`의 `CLIP_PIN_*`에 있으며 확장보드 표준 배치를 따른다.
+
+## 빌드
+
+### 준비
+
+```bash
+cd firmware/clipsense_cam
+cp secrets.example.h secrets.h
+# secrets.h 를 열어 Wi-Fi SSID/비밀번호, 기기 토큰, 복구 AP 비밀번호를 채운다
+```
+
+`secrets.h`는 `.gitignore`에 있다. **커밋하지 않는다.**
+
+기기 토큰 생성 예:
+
+```bash
+openssl rand -hex 16
+```
+
+### arduino-cli
+
+```bash
+arduino-cli core install esp32:esp32 \
+  --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+
+arduino-cli compile \
+  -b esp32:esp32:XIAO_ESP32S3:PSRAM=opi \
+  firmware/clipsense_cam
+```
+
+업로드(보드를 USB로 연결한 뒤):
+
+```bash
+arduino-cli upload -p /dev/cu.usbmodem* \
+  -b esp32:esp32:XIAO_ESP32S3:PSRAM=opi \
+  firmware/clipsense_cam
+
+arduino-cli monitor -p /dev/cu.usbmodem* -c baudrate=115200
+```
+
+### PlatformIO
+
+```bash
+cd firmware
+pio run                       # 컴파일
+pio run -t upload             # 업로드
+pio device monitor -b 115200  # 직렬 로그
+```
+
+## HTTP API
+
+모든 데이터 엔드포인트는 `X-Clip-Device-Token` 헤더를 요구한다.
+
+| 경로 | 용도 |
+|---|---|
+| `GET /health` | 상태·버전·장애 통계 (JSON) |
+| `GET /capture` | 판정용 단일 JPEG |
+| `GET /jpg` | `/capture` 호환 별칭 |
+| `GET /` | 조준 점검 화면 (기본 **비활성**, `CLIP_ENABLE_INSPECT_PAGE`) |
+
+MJPEG `/stream`은 제공하지 않는다. 스트림과 스냅샷이 프레임버퍼를 경쟁하면
+"보인 프레임 = 분석한 프레임"이 깨지기 때문이다(§10.1).
+
+### 예시
+
+```bash
+TOKEN=$(cat ~/.clipsense/device_token)
+HOST=clipsense-a1b2.local   # 또는 직렬 로그에 찍힌 IP
+
+curl -H "X-Clip-Device-Token: $TOKEN" http://$HOST/health
+curl -H "X-Clip-Device-Token: $TOKEN" -o frame.jpg -D - http://$HOST/capture
+```
+
+### `/capture` 응답 헤더
+
+```
+X-Frame-Seq: 1482            새 JPEG 획득 성공 시에만 증가
+X-Capture-Uptime-Us: 372800221   획득 순간의 기기 uptime
+X-Response-Uptime-Us: 372812505  응답 직전의 기기 uptime
+X-Boot-Id: a83f219c          부팅마다 바뀜
+X-Firmware-Version: 0.2.0
+X-Camera-Sensor: OV3660
+```
+
+실패 시:
+
+| 코드 | 뜻 |
+|---|---|
+| 401 / 403 | 토큰 없음 / 틀림 |
+| 409 | 다른 요청이 카메라를 점유 중 |
+| 503 | 획득 실패 (오래된 프레임을 대신 보내지 않는다) |
+
+### 프레임 신선도 계산
+
+기기 uptime과 브라우저 `performance.now()`는 서로 다른 clock domain이라 직접
+뺄 수 없다(§10.4). 판정 쪽은 이렇게 보수적으로 추정한다.
+
+```
+serverFrameAgeMs = (X-Response-Uptime-Us - X-Capture-Uptime-Us) / 1000
+conservativeAgeMs = requestRttMs + serverFrameAgeMs
+capturedAtMonoMs = responseReceivedMonoMs - conservativeAgeMs
+```
+
+헤더가 없거나 유한하지 않거나 `responseUptime < captureUptime`이면 **프레임을
+무효로 처리한다.** `X-Capture-Uptime-Us`는 같은 `bootId` 안에서만 프레임
+진행·정지 비교에 쓰고, `bootId`가 바뀌면 이력을 폐기한다.
+
+## 네트워크 동작
+
+```
+BOOT
+└─ STA_CONNECTING ── 성공 ──────────→ STA_ACTIVE
+                  └─ 15초 초과 ─────→ AP_RECOVERY
+
+STA_ACTIVE 중 두절 → STA_RECONNECTING (5초 간격, 6회)
+                   └─ 계속 실패 ────→ AP_RECOVERY
+```
+
+- 연결이 끊기면 카메라 관측은 도달 불가가 되고, 판정 쪽은 **freshness 만료로
+  스스로 대기**에 들어간다. 펌웨어가 대신 판단하지 않는다.
+- SoftAP는 자동 안전 failover가 **아니다.** 사람이 직접 붙어 상태를 확인하는
+  복구 경로이며, Wi-Fi 자격정보를 입력받는 provisioning은 이 범위에 없다.
+- STA에서는 `clipsense-<MAC뒤4자리>.local` mDNS를 시도한다. 실패하면 직렬
+  로그의 IP를 쓴다.
+
+## 보안 범위
+
+이 구성은 **팀 전용 격리망 + 기기 토큰**을 전제한 예선용 완화책이다. TLS와
+사용자 인증을 갖춘 생산 보안을 대신하지 않는다.
+
+- 데이터 엔드포인트는 토큰 필수, CORS는 설정된 origin만(와일드카드 금지)
+- 조준 화면과 MJPEG 스트림은 기본 비활성
+- `/health`는 SSID·비밀번호를 반환하지 않는다
+- 프레임을 기기·서버에 저장하지 않는다
+- 촬영 중 LED 점등
+
+## 실기기 검증 전 주장하지 않는 것
+
+보드가 손에 들어오기 전까지 아래는 **측정되지 않았다.**
+
+- 업로드 성공, 실제 촬영 프레임, 센서 PID
+- 프레임 획득 지연과 실효 fps
+- Wi-Fi 재접속 실제 소요 시간
+- 연속 동작 시 발열과 스로틀링
+- 케이스·클립 고정, 케이블 인장
+
+컴파일이 통과한 것과 기기에서 도는 것은 다른 주장이다. 이 문서는 그 둘을
+섞어 쓰지 않는다.
+
+## 파일 구성
+
+```
+firmware/
+├── platformio.ini            PlatformIO 빌드 설정
+├── README.md                 이 문서
+└── clipsense_cam/
+    ├── clipsense_cam.ino     setup/loop, 부팅 로그, bootId, LED
+    ├── config.h              고정 설정 (핀맵·프로필·CORS·타임아웃)
+    ├── secrets.example.h     secrets.h 템플릿 (실제 값은 커밋 금지)
+    ├── camera_service.h/.cpp 카메라 초기화, mutex, 원자적 프레임+메타데이터
+    ├── network_manager.h/.cpp Wi-Fi 상태기계, mDNS, 복구 AP
+    └── http_api.h/.cpp       /health · /capture · 토큰 인증 · CORS
+```

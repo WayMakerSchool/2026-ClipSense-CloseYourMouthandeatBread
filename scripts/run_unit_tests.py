@@ -20,6 +20,7 @@ TESTS = [
     "test_digits.py",
     "test_digits_robust.py",
     "test_voice.py",
+    "verify_firmware_contract.py",
 ]
 
 failed = []

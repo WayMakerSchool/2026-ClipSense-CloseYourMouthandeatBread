@@ -47,3 +47,8 @@ app/android/.gradle/
 
 # Claude Code 워크플로 worktree (로컬 전용)
 .claude/worktrees/
+
+# 펌웨어 비밀정보(Wi-Fi 자격정보·기기 토큰) — secrets.example.h만 커밋한다
+firmware/clipsense_cam/secrets.h
+firmware/.pio/
+firmware/build/

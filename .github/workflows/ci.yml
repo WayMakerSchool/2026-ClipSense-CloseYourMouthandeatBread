@@ -31,6 +31,28 @@ jobs:
       - name: Run end-to-end video pipeline
         run: python scripts/run_pipeline_test.py
 
+  firmware:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install arduino-cli
+        run: |
+          mkdir -p "$HOME/bin"
+          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh \
+            | BINDIR="$HOME/bin" sh
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+      - name: Install ESP32 core
+        run: |
+          arduino-cli core update-index \
+            --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core install esp32:esp32 \
+            --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+      - name: Provide build-time secrets header
+        # 실제 값이 아닌 템플릿으로 컴파일만 확인한다(secrets.h는 커밋하지 않는다).
+        run: cp firmware/clipsense_cam/secrets.example.h firmware/clipsense_cam/secrets.h
+      - name: Compile clip camera firmware
+        run: arduino-cli compile -b esp32:esp32:XIAO_ESP32S3:PSRAM=opi firmware/clipsense_cam
+
   flutter:
     runs-on: ubuntu-latest
     defaults:
