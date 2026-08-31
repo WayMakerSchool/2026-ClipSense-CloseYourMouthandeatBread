@@ -1,5 +1,19 @@
 # Clip Sense — 보행 신호 이중 검증 안내
 
+[![CI](https://github.com/daniellim2022/ClipSense/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/daniellim2022/ClipSense/actions/workflows/ci.yml)
+
+시각장애인의 횡단보도 보행을 돕는 안내 시스템. **서울 T-Data 실시간 보행신호 API**와
+**휴대전화 카메라 판정**을 모두 확인해, 둘 다 초록이고 안전한 잔여시간이 있을 때만
+"지금 건너셔도 됩니다"를 음성으로 안내한다. 하나라도 불확실하면 건너라고 하지 않는다.
+
+| | |
+|---|---|
+| 판정 규칙 | API·카메라 **둘 다** 초록 ∧ API 잔여 ≥ 7초 ∧ 둘 다 2초 이내 최신 → 보행 허용 |
+| 불확실할 때 | 항상 대기 또는 "확인 불가" (추측하지 않음) |
+| 검출 방식 | OpenCV HSV 색 판정 + 형태 검증 — 딥러닝 없음, 오프라인 동작 |
+| 테스트 | Flutter 324개 · Python 10모듈 · 합성 영상 파이프라인 3시나리오 (CI 자동 실행) |
+| 검증 자료 | 실제 신호등 영상 기반 회귀 테스트, 야외 조건·인식 거리 실측 스크립트 |
+
 이 저장소에는 두 실행 경로가 있다.
 
 - `app/`: 서울 T-Data API와 휴대전화 카메라를 엄격 AND로 결합한 Flutter 앱
