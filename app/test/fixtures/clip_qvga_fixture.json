@@ -1,0 +1,72 @@
+{
+ "schema": "clipsense-qvga-fixture-v1",
+ "source": "real_signal_clip.mp4",
+ "source_frame_size": [
+  1280,
+  720
+ ],
+ "geometry": "center 4:3 crop (960x720) -> INTER_AREA 320x240 -> cv2 JPEG",
+ "jpeg_quality": 80,
+ "opencv_version": "5.0.0",
+ "regenerate_cmd": "python scripts/dump_clip_qvga_fixture.py --video data/real_signal_clip.mp4 --frames 20,34 --quality 80 --out app/test/fixtures/clip_qvga",
+ "frames": [
+  {
+   "frame_index": 20,
+   "file": "clip_qvga_f20.jpg",
+   "bytes": 7172,
+   "sha256": "8afe61c1c7869cf3bde9ada098f10cfb0d4d818ca7ef80af06d7808d2a75170e",
+   "python_reference": {
+    "1.0": {
+     "raw": "NONE",
+     "reason": "no_blob",
+     "green_area_ratio": 0.00398,
+     "red_area_ratio": 0.00047,
+     "brightness": 177.76
+    },
+    "0.5": {
+     "raw": "GREEN",
+     "reason": "",
+     "green_area_ratio": 0.01122,
+     "red_area_ratio": 0.00187,
+     "brightness": 129.34
+    },
+    "0.25": {
+     "raw": "GREEN",
+     "reason": "",
+     "green_area_ratio": 0.03396,
+     "red_area_ratio": 0.0075,
+     "brightness": 109.87
+    }
+   }
+  },
+  {
+   "frame_index": 34,
+   "file": "clip_qvga_f34.jpg",
+   "bytes": 6974,
+   "sha256": "bcc8177b108e0ea2a9c7c97b71ad144c4b406150edda2ce0d83072e70c88424d",
+   "python_reference": {
+    "1.0": {
+     "raw": "NONE",
+     "reason": "no_blob",
+     "green_area_ratio": 0.00357,
+     "red_area_ratio": 0.00023,
+     "brightness": 177.44
+    },
+    "0.5": {
+     "raw": "GREEN",
+     "reason": "",
+     "green_area_ratio": 0.0082,
+     "red_area_ratio": 0.00073,
+     "brightness": 128.72
+    },
+    "0.25": {
+     "raw": "NONE",
+     "reason": "no_blob",
+     "green_area_ratio": 0.0,
+     "red_area_ratio": 0.0,
+     "brightness": 105.59
+    }
+   }
+  }
+ ]
+}

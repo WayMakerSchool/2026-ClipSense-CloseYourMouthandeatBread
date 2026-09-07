@@ -937,4 +937,48 @@ void main() {
     expect(c.decision, Decision.walk);
     c.dispose();
   });
+
+  group('클립 카메라 연결 불가 이유 매핑', () {
+    test('status=unreachable + 카메라 불가 → clipUnreachable, 결정은 wait', () async {
+      final vision = FakeVisionSource(
+        const SignalReading(SignalColor.unknown, null, SignalSource.vision),
+        status: VisionSourceStatus.unreachable,
+      );
+      final c = GuidanceController(
+        feedback: feedback,
+        itstId: '1850',
+        direction: 'st',
+        vision: vision,
+        allowSingleSource: false,
+        clock: () => 0,
+        fetch: (itstId, direction, apiKey, {required nowMs}) async =>
+            const SignalReading(SignalColor.green, 20, SignalSource.api),
+      );
+      await c.tickOnce();
+      expect(c.decision, Decision.wait);
+      expect(c.reason, DecisionReason.clipUnreachable);
+      expect(speech.spoken.last, contains('클립 카메라에 연결할 수 없습니다'));
+      c.dispose();
+    });
+
+    test('status=unreachable 이어도 이유가 카메라 불가가 아니면 매핑하지 않는다', () async {
+      final vision = FakeVisionSource(
+        const SignalReading(SignalColor.red, null, SignalSource.vision),
+        status: VisionSourceStatus.unreachable,
+      );
+      final c = GuidanceController(
+        feedback: feedback,
+        itstId: '1850',
+        direction: 'st',
+        vision: vision,
+        allowSingleSource: false,
+        clock: () => 0,
+        fetch: (itstId, direction, apiKey, {required nowMs}) async =>
+            const SignalReading(SignalColor.red, null, SignalSource.api),
+      );
+      await c.tickOnce();
+      expect(c.reason, DecisionReason.redSignal);
+      c.dispose();
+    });
+  });
 }

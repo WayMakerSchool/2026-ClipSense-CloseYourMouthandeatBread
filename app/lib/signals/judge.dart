@@ -32,6 +32,12 @@ enum DecisionReason {
   /// 그대로 wait). 사용자가 취할 행동은 "설정에서 카메라 허용".
   cameraDenied,
 
+  /// 클립 카메라(HTTP 스냅샷)에 연결되지 않아 판독이 불가능. [evaluate]는 이
+  /// 값을 절대 만들지 않는다 — GuidanceController가 VisionSource 상태
+  /// (unreachable)를 보고 cameraUnavailable을 이 값으로 바꾼다(결정은 그대로
+  /// wait). 사용자가 취할 행동은 "클립 전원·Wi-Fi 확인".
+  clipUnreachable,
+
   /// 카메라는 쓸 수 있는데 API 판독이 없음(미응답·unknown·stale). 사용자가
   /// 취할 행동은 없고 그냥 기다린다.
   apiUnavailable,
@@ -65,6 +71,8 @@ String decisionReasonText(DecisionReason reason) {
       return '카메라가 신호등을 찾지 못했습니다. 신호등을 향해 주세요';
     case DecisionReason.cameraDenied:
       return '카메라 권한이 없습니다. 설정에서 카메라를 허용해 주세요';
+    case DecisionReason.clipUnreachable:
+      return '클립 카메라에 연결할 수 없습니다. 전원과 Wi-Fi 연결을 확인해 주세요';
     case DecisionReason.apiUnavailable:
       return '신호 정보를 아직 받지 못했습니다';
     case DecisionReason.apiKeyMissing:

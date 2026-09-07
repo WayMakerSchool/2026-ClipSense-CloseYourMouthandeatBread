@@ -37,3 +37,28 @@ const int kCameraProcessEveryN = 3;
 
 /// camera 플러그인의 해상도 프리셋 이름. 실제 enum 변환은 카메라 계층만 담당한다.
 const String kCameraResolutionPreset = 'medium';
+
+/// 클립 카메라(XIAO ESP32S3 Sense) 주소. 비어 있으면(기본) 폰 카메라를 쓴다.
+/// `--dart-define=CLIP_CAM_HOST=192.168.4.1` 또는 `http://clipsense-a1b2.local`.
+/// 하드코딩 금지. mDNS(.local) 해석은 OS 에 맡긴다(Android 는 해석 못 할 수 있음
+/// → IP 사용).
+const String kClipCamHost = String.fromEnvironment('CLIP_CAM_HOST');
+
+/// 클립 카메라 기기 토큰(펌웨어 secrets.h 의 CLIP_DEVICE_TOKEN 과 같은 값).
+/// `--dart-define=CLIP_CAM_TOKEN=...`. 하드코딩 금지.
+const String kClipCamToken = String.fromEnvironment('CLIP_CAM_TOKEN');
+
+/// 클립 프레임(QVGA 320x240 전체)에서 검출에 쓸 중앙 비율.
+///
+/// 실측(scripts/dump_clip_qvga_fixture.py, 실클립을 4:3 으로 잘라 QVGA 로 줄임):
+/// 1.0 은 점등 프레임에서도 초록 0.40% < 0.5% 로 no_blob, 0.5 는 점멸 **소등**
+/// 프레임에서도 GREEN(0.82%) 이 나와 점멸을 놓치므로 기본값 불가, 0.25(80x60)는
+/// 점등 GREEN 3.4% / 소등 NONE. 실기기 프레임으로 다시 측정할 항목.
+const double kClipRoiFrac = 0.25;
+
+/// 클립 카메라 스냅샷 폴링 간격(하드웨어 보고서 §11.3). 이전 요청이 끝나기 전에는
+/// 새 요청을 보내지 않으므로 실효 간격은 이보다 길 수 있다.
+const Duration kClipPollInterval = Duration(milliseconds: 250);
+
+/// 스냅샷 한 요청의 제한 시간(§11.3 초기값). 넘기면 연결을 끊고 unknown.
+const Duration kClipRequestTimeout = Duration(milliseconds: 800);

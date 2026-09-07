@@ -80,4 +80,11 @@ void main() {
       '신호를 확인할 수 없습니다. 대기하세요',
     );
   });
+
+  test('wait + 클립 카메라 연결 불가 → 이유를 먼저 말한다', () {
+    expect(
+      speechText(Decision.wait, reason: DecisionReason.clipUnreachable),
+      '클립 카메라에 연결할 수 없습니다. 전원과 Wi-Fi 연결을 확인해 주세요. 기다리세요',
+    );
+  });
 }

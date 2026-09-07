@@ -6,8 +6,10 @@ import 'package:flutter/material.dart';
 import 'feedback/speech_output.dart';
 import 'feedback/haptic_output.dart';
 import 'feedback/feedback_controller.dart';
+import 'app/config.dart';
 import 'app/location_service.dart';
 import 'app/selection_screen.dart';
+import 'app/vision_source_factory.dart';
 
 void main() {
   runApp(const ClipSenseApp());
@@ -25,6 +27,9 @@ class ClipSenseApp extends StatelessWidget {
         location: GeolocatorLocationService(),
         feedbackFactory: () =>
             FeedbackController(FlutterTtsSpeech(), VibrationHaptic()),
+        // CLIP_CAM_HOST 가 주어지면 옷깃 클립 카메라(HTTP 스냅샷), 아니면 폰 카메라.
+        visionFactory: () =>
+            defaultVisionSource(host: kClipCamHost, token: kClipCamToken),
       ),
     );
   }

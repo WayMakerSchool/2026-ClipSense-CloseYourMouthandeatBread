@@ -220,9 +220,18 @@ class GuidanceController extends ChangeNotifier {
       // 카메라 권한 거부: judge는 판독값만 보므로 "미인식"과 구분할 수 없다.
       // 소스 상태가 permissionDenied이고 judge가 카메라 불가라 했을 때만 이유를
       // 바꾼다 — 결정(wait)은 그대로(안전 정책 불변), 문구만 "설정에서 허용".
-      if (result.reason == DecisionReason.cameraUnavailable &&
-          _vision?.status == VisionSourceStatus.permissionDenied) {
-        result = DecisionResult(result.decision, DecisionReason.cameraDenied);
+      if (result.reason == DecisionReason.cameraUnavailable) {
+        final status = _vision?.status;
+        if (status == VisionSourceStatus.permissionDenied) {
+          result = DecisionResult(result.decision, DecisionReason.cameraDenied);
+        } else if (status == VisionSourceStatus.unreachable) {
+          // 클립 카메라에 닿지 못함 — "신호등을 향하라"가 아니라 "전원·Wi-Fi 를
+          // 확인하라"가 사용자가 취할 행동이다. 결정은 그대로 wait.
+          result = DecisionResult(
+            result.decision,
+            DecisionReason.clipUnreachable,
+          );
+        }
       }
       if (!_apiConfigured) {
         result = DecisionResult(result.decision, DecisionReason.apiKeyMissing);

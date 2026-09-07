@@ -2,6 +2,9 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- 클립 카메라 시뮬레이터·T-Data 에 나가는 연결(macOS 데스크톱 스모크 실행용, 미실행). -->
+	<key>com.apple.security.network.client</key>
+	<true/>
 	<key>com.apple.security.app-sandbox</key>
 	<true/>
 	<key>com.apple.security.personal-information.location</key>

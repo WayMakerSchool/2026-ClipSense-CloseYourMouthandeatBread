@@ -23,4 +23,12 @@ void main() {
   test('kStaleMs: 두 소스 모두 2초 이내 최신일 때만 판정에 쓴다(안전 정책 상수)', () {
     expect(kStaleMs, 2000);
   });
+
+  test('클립 카메라 설정: 기본은 미설정(폰 카메라), 하드코딩 금지', () {
+    expect(kClipCamHost, '');
+    expect(kClipCamToken, '');
+    expect(kClipPollInterval, const Duration(milliseconds: 250));
+    expect(kClipRequestTimeout, const Duration(milliseconds: 800));
+    expect(kClipRoiFrac, 0.25);
+  });
 }

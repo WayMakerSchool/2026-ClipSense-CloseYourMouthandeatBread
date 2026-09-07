@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  클립 카메라(XIAO ESP32S3)는 팀 전용 Wi-Fi 안에서 평문 http:// 로만 프레임을 준다
+  (TLS 없음 — 하드웨어 보고서 §10.1 "예선 범위" 완화책). Android 9+ 는 평문을 기본
+  차단하므로 여기서 허용한다. Android 의 domain-config 는 CIDR 을 못 쓰고 클립
+  주소(192.168.x.y 또는 .local)는 고정이 아니라 base-config 로 허용한다. T-Data 는
+  https 라 영향 없다. 실기기 미검증.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
