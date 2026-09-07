@@ -475,4 +475,21 @@ void main() {
       expect(s.status, VisionSourceStatus.idle);
     });
   });
+
+  test('토큰 거부(failed) 뒤 stop() 없이 start() 만 다시 불러도 새 세션으로 재시도한다', () async {
+    final s = make(poll: const Duration(milliseconds: 5));
+    cam.script.add(() => failed(ClipFetchFailure.unauthorized, status: 403));
+    await s.start();
+    await waitUntil(() => s.status == VisionSourceStatus.failed);
+    final callsAfterFailure = cam.calls;
+
+    // 펌웨어 토큰을 고쳐 재시작한 상황: 이번엔 정상 프레임.
+    cam.script.add(() => ok(seq: 1, captureUs: 1000));
+    await s.start();
+    await waitUntil(() => cam.calls > callsAfterFailure);
+    expect(cam.calls, greaterThan(callsAfterFailure));
+    await waitUntil(() => s.status == VisionSourceStatus.streaming);
+    expect(s.status, VisionSourceStatus.streaming);
+    await s.stop();
+  });
 }

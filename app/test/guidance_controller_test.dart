@@ -1094,10 +1094,11 @@ void main() {
       }
     });
 
-    test('API 키 누락이 stalled·starting 보다 우선한다', () async {
+    test('API 키 누락이 stalled·starting·unreachable 보다 우선한다', () async {
       for (final status in [
         VisionSourceStatus.stalled,
         VisionSourceStatus.starting,
+        VisionSourceStatus.unreachable,
       ]) {
         final c = GuidanceController(
           feedback: feedback,

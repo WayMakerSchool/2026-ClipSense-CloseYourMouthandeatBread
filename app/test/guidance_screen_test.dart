@@ -397,6 +397,24 @@ void main() {
 
     // 한 줄 문구는 순수 함수로 고정한다(화면 테스트와 같은 포맷).
     group('diagnosticsLine', () {
+      test('클립 연결 불가: unreachable 상태·timeout 이유', () {
+        expect(
+          diagnosticsLine(
+            vision: const SignalReading(
+              SignalColor.unknown,
+              null,
+              SignalSource.vision,
+            ),
+            status: VisionSourceStatus.unreachable,
+            diagnostics: const VisionDiagnostics(
+              lastReason: 'timeout',
+              lastFrameAgeMs: 900,
+            ),
+          ),
+          'API — · 카메라 없음 — unreachable · 0ms · 신선 900ms · timeout',
+        );
+      });
+
       test('정지 감시: stalled 상태·same_frame 이유', () {
         expect(
           diagnosticsLine(

@@ -15,8 +15,8 @@
 /// * 상태머신 시각은 기기 촬영 uptime(같은 bootId 안에서 단조 증가)이다. 수신·
 ///   처리 시각을 쓰면 점멸 판정이 네트워크 지터를 따라간다. bootId 가 바뀌면
 ///   이력을 버리고 새 시각 축을 쓴다.
-/// * 401/403 은 failed(token_rejected) 로 두고 폴링을 멈춘다. 같은 토큰으로
-///   재시도해도 결과가 같다. 다음 start() 에서 다시 시도한다.
+/// * 401/403 은 failed(token_rejected) 로 두고 폴링 세션을 끝낸다. 같은 토큰으로
+///   재시도해도 결과가 같다. 다음 start() 에서(stop() 없이도) 새 세션으로 다시 시도한다.
 /// * timeout/transport 는 unreachable — 폴링은 계속하고 다음 응답에서 복귀.
 /// * 같은 프레임(sameFrame)·503 등만 kVisionStallMs 넘게 이어지면 status 는 stalled —
 ///   마지막 accepted 프레임 수신 시각(세션 첫 응답에서 초기화)으로 파생하며 래치가
@@ -281,7 +281,11 @@ class ClipVisionSource implements VisionSource {
         final reason = clipFailureReason(failure);
         switch (failure) {
           case ClipFetchFailure.unauthorized:
+            // 같은 토큰으로는 재시도가 무의미하다 — 세션을 끝낸다. 상태는 failed 로
+            // 남겨 컨트롤러가 "토큰 설정 확인"을 말하게 하고, 사용자가 다시 start()
+            // 하면(stop() 없이도) 새 세션으로 재시도한다.
             _fail(reason, VisionSourceStatus.failed);
+            _desiredRunning = false;
           case ClipFetchFailure.timeout:
           case ClipFetchFailure.transport:
             _fail(reason, VisionSourceStatus.unreachable);
