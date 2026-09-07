@@ -117,6 +117,12 @@ def test_contract_all_pass() -> None:
         check("검사기 대상 감지 == SIM", checker.detect_target(base) == "SIM")
     finally:
         server.stop()
+    # 정당한 펌웨어 키 rssiDbm 이 'ssid' 부분 문자열에 걸리면 보드에서도 오탐한다.
+    check(
+        "비밀 키 판별: rssiDbm 은 통과, wifiSsid·apPassword·ssid 는 잡힌다",
+        not checker._looks_like_secret_key("rssiDbm")
+        and all(checker._looks_like_secret_key(k) for k in ("wifiSsid", "apPassword", "ssid", "wifi_password")),
+    )
 
 
 def test_checker_not_vacuous() -> None:
@@ -448,9 +454,9 @@ def test_token_never_leaks() -> None:
         with contextlib.redirect_stderr(buf):
             r = get(base, "/capture")
             get(base, "/capture", token="wrong")
+            h = json.dumps(health(base))
+            st = json.dumps(state(base))
         log = buf.getvalue()
-        h = json.dumps(health(base))
-        st = json.dumps(state(base))
         check(
             "요청 로그·/health·/__sim/state 에 토큰이 없다",
             r.status == 200
