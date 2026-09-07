@@ -159,6 +159,11 @@ def main() -> None:
     ]:
         check(f"부팅 로그에 {field}", field in ino)
     check("bootId가 재부팅마다 바뀜(esp_random)", "esp_random()" in ino)
+    # RF 초기화 전 esp_random()은 엔트로피가 약할 수 있어 재부팅 감지가 깨진다.
+    # MAC·RTC 부팅 카운터를 함께 섞는지 본다(2026-09-07).
+    check("bootId에 eFuse MAC을 섞음", "esp_efuse_mac_get_default(" in ino)
+    check("bootId에 RTC 부팅 카운터를 섞음", "RTC_NOINIT_ATTR" in ino and "rtcBootCounter" in ino)
+    check("부팅 로그에 bootCounter", "bootCounter" in ino)
 
     print("\n=== §9.4 네트워크 상태기계 ===")
     for state in ["StaConnecting", "StaActive", "StaReconnecting", "ApRecovery"]:

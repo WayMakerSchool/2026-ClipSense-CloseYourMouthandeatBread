@@ -15,7 +15,9 @@
 // 준비: secrets.example.h 를 secrets.h 로 복사해 Wi-Fi·토큰을 채운다.
 
 #include <Arduino.h>
+#include <esp_mac.h>
 #include <esp_system.h>
+#include <esp_timer.h>
 
 #include "camera_service.h"
 #include "config.h"
@@ -42,11 +44,39 @@ void ledWrite(bool on) {
   ledOn = on;
 }
 
+// 소프트 리셋(패닉·워치독·esp_restart) 사이에 살아남는 부팅 카운터. RTC 메모리는
+// 전원이 끊기면 임의값이 되지만, 그때는 어차피 새 값이므로 상관없다.
+RTC_NOINIT_ATTR uint32_t rtcBootCounter;
+
 // 재부팅마다 달라지는 부팅 식별자(§9.3). 판정 쪽은 bootId가 바뀌면 프레임
 // 진행·정지 비교 이력을 폐기해야 한다 — uptime이 0부터 다시 시작하기 때문이다.
+//
+// esp_random()만 쓰면 위험하다: RF(Wi-Fi)가 켜지기 전에는 하드웨어 RNG 엔트로피가
+// 약해 재부팅마다 같은 값이 나올 수 있고, 그러면 판정 쪽이 재부팅을 못 알아채
+// 0부터 다시 시작한 uptime을 "시간 역행"으로 보고 모든 프레임을 거부한다(안전하지만
+// 사용자가 stop/start 할 때까지 카메라가 멈춘 것처럼 보인다). 그래서 기기 고유
+// eFuse MAC, 부팅 카운터, 타이머, esp_random()을 FNV-1a로 섞는다 — 연속 재부팅에서
+// 같은 값이 나오지 않게 하는 용도이지 암호학적 식별자가 아니다.
 void makeBootId() {
-  const uint32_t r = esp_random();
-  snprintf(bootId, sizeof(bootId), "%08x", r);
+  uint8_t mac[6] = {0, 0, 0, 0, 0, 0};
+  esp_efuse_mac_get_default(mac);
+  rtcBootCounter++;
+
+  uint32_t h = 2166136261u;  // FNV-1a 32-bit offset basis
+  auto mixByte = [&h](uint8_t b) {
+    h ^= b;
+    h *= 16777619u;
+  };
+  auto mixWord = [&mixByte](uint32_t w) {
+    for (int i = 0; i < 4; i++) mixByte(static_cast<uint8_t>(w >> (8 * i)));
+  };
+  for (int i = 0; i < 6; i++) mixByte(mac[i]);
+  mixWord(rtcBootCounter);
+  mixWord(esp_random());
+  const uint64_t now = static_cast<uint64_t>(esp_timer_get_time());
+  mixWord(static_cast<uint32_t>(now));
+  mixWord(static_cast<uint32_t>(now >> 32));
+  snprintf(bootId, sizeof(bootId), "%08x", h);
 }
 
 // 부팅 진단(§9.3). 실기기에서 문제가 생겼을 때 첫 화면이 되는 로그다.
@@ -57,6 +87,7 @@ void printBootLog() {
   Serial.printf("buildTimestamp    %s %s\n", __DATE__, __TIME__);
   Serial.printf("deviceId          %s\n", CLIP_DEVICE_ID);
   Serial.printf("bootId            %s\n", bootId);
+  Serial.printf("bootCounter       %lu\n", static_cast<unsigned long>(rtcBootCounter));
   Serial.printf("resetReason       %d\n", static_cast<int>(esp_reset_reason()));
   Serial.printf("cameraSensorPid   %s\n", camera.sensorName());
   Serial.printf("cameraOk          %s\n", camera.cameraOk() ? "true" : "false");
