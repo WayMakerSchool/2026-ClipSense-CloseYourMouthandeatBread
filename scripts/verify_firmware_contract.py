@@ -18,6 +18,26 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 FW = ROOT / "firmware" / "clipsense_cam"
+sys.path.insert(0, str(ROOT))
+
+# 헤더·경로 문자열은 앱 계약의 Python 미러(clip_snapshot.py)에서 가져온다 — 골든
+# app/test/fixtures/clip_freshness_cases.json 이 그 상수를 clip_contract.dart 와 묶으므로
+# 펌웨어 ↔ Python ↔ 골든 ↔ Dart 사슬이 닫힌다. 여기 복사본을 두면 세 벌이 되어 한쪽만
+# 바뀌어도 검사가 통과한다.
+from clip_snapshot import (  # noqa: E402
+    CLIP_TOKEN_HEADER, CLIP_FRAME_SEQ_HEADER, CLIP_CAPTURE_UPTIME_HEADER,
+    CLIP_RESPONSE_UPTIME_HEADER, CLIP_BOOT_ID_HEADER, CLIP_FIRMWARE_VERSION_HEADER,
+    CLIP_CAMERA_SENSOR_HEADER, CLIP_CAPTURE_PATH, CLIP_HEALTH_PATH,
+)
+
+FRAME_HEADERS = [
+    CLIP_FRAME_SEQ_HEADER,
+    CLIP_CAPTURE_UPTIME_HEADER,
+    CLIP_RESPONSE_UPTIME_HEADER,
+    CLIP_BOOT_ID_HEADER,
+    CLIP_FIRMWARE_VERSION_HEADER,
+    CLIP_CAMERA_SENSOR_HEADER,
+]
 
 FAILURES: list[str] = []
 
@@ -60,7 +80,7 @@ def main() -> None:
         check(f"{name} 존재", (FW / name).exists())
 
     print("\n=== §10.1 엔드포인트 ===")
-    for path in ["/health", "/capture", "/jpg"]:
+    for path in [CLIP_HEALTH_PATH, CLIP_CAPTURE_PATH, "/jpg"]:
         check(f"{path} 등록", f'"{path}"' in http)
     check(
         "/capture와 /jpg가 같은 핸들러",
@@ -73,7 +93,7 @@ def main() -> None:
     )
 
     print("\n=== §10.1 보안 ===")
-    check("토큰 헤더 이름이 X-Clip-Device-Token", 'CLIP_TOKEN_HEADER "X-Clip-Device-Token"' in config)
+    check(f"토큰 헤더 이름이 {CLIP_TOKEN_HEADER}", f'CLIP_TOKEN_HEADER "{CLIP_TOKEN_HEADER}"' in config)
     check("모든 데이터 엔드포인트가 authorize() 통과", http.count("if (!authorize()) return;") >= 2)
     check(
         "CORS 와일드카드 미사용",
@@ -87,20 +107,12 @@ def main() -> None:
           "CLIP_AP_PASSWORD" not in http)
 
     print("\n=== §10.3 프레임 계약 ===")
-    for header in [
-        "X-Frame-Seq",
-        "X-Capture-Uptime-Us",
-        "X-Response-Uptime-Us",
-        "X-Boot-Id",
-        "X-Firmware-Version",
-        "X-Camera-Sensor",
-    ]:
+    for header in FRAME_HEADERS:
         check(f"{header} 응답 헤더", f'"{header}"' in http)
     check(
         "Expose-Headers에 6개 모두 노출",
         all(h in http.split("Access-Control-Expose-Headers")[1][:400]
-            for h in ["X-Frame-Seq", "X-Capture-Uptime-Us", "X-Response-Uptime-Us",
-                      "X-Boot-Id", "X-Firmware-Version", "X-Camera-Sensor"])
+            for h in FRAME_HEADERS)
         if "Access-Control-Expose-Headers" in http else False,
     )
     check("획득 실패 → 503", '503, "application/json"' in http)
