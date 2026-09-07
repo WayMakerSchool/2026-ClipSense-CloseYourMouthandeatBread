@@ -60,9 +60,13 @@ Uri clipBaseUri(String host) {
   return uri;
 }
 
+/// 401/403 때 [VisionDiagnostics.lastReason] 에 남기는 값. 컨트롤러가 이 값을
+/// 보고 "토큰 설정을 확인하라"(clipTokenRejected)로 말한다.
+const String kClipTokenRejectedReason = 'token_rejected';
+
 /// [VisionDiagnostics.lastReason] 에 남기는 실패 이유 문자열.
 String clipFailureReason(ClipFetchFailure failure) => switch (failure) {
-  ClipFetchFailure.unauthorized => 'token_rejected',
+  ClipFetchFailure.unauthorized => kClipTokenRejectedReason,
   ClipFetchFailure.busy => 'busy',
   ClipFetchFailure.captureFailed => 'capture_failed',
   ClipFetchFailure.badContentType => 'bad_content_type',

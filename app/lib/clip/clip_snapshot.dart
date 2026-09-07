@@ -76,13 +76,15 @@ String? _header(Map<String, String> headers, String name) {
   return null;
 }
 
-/// 음수가 아닌 정수만 허용. double 을 거치지 않는다(64비트 µs 보존, '1e3'·
-/// '1.5'·'NaN'·'Infinity' 거부).
+/// 십진 숫자만으로 된 음수 아닌 정수만 허용. double 을 거치지 않는다(64비트 µs
+/// 보존). '1e3'·'1.5'·'NaN'·'Infinity' 는 물론 '+5'·'0x10' 처럼 int.tryParse 가
+/// 받아 주는 표기도 거부한다 — 펌웨어는 부호 없는 십진수만 보낸다.
 int? _nonNegativeInt(String? text) {
   if (text == null || text.isEmpty) return null;
-  final value = int.tryParse(text);
-  if (value == null || value < 0) return null;
-  return value;
+  for (final unit in text.codeUnits) {
+    if (unit < 0x30 || unit > 0x39) return null;
+  }
+  return int.tryParse(text); // 19자리 초과(64비트 넘침)는 null
 }
 
 /// `/capture` 응답 헤더를 [ClipCaptureMeta] 로. 계약 위반이면 null.

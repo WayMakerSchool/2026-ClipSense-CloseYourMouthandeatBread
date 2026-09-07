@@ -87,4 +87,11 @@ void main() {
       '클립 카메라에 연결할 수 없습니다. 전원과 Wi-Fi 연결을 확인해 주세요. 기다리세요',
     );
   });
+
+  test('wait + 클립 카메라 토큰 거부 → 설정 확인 안내', () {
+    expect(
+      speechText(Decision.wait, reason: DecisionReason.clipTokenRejected),
+      '클립 카메라가 접속을 거부했습니다. 기기 토큰 설정을 확인해 주세요. 기다리세요',
+    );
+  });
 }

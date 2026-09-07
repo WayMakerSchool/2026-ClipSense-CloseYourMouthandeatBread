@@ -939,6 +939,56 @@ void main() {
   });
 
   group('클립 카메라 연결 불가 이유 매핑', () {
+    test(
+      'status=failed + 진단 token_rejected → clipTokenRejected, 결정은 wait',
+      () async {
+        final vision = FakeVisionSource(
+          const SignalReading(SignalColor.unknown, null, SignalSource.vision),
+          status: VisionSourceStatus.failed,
+          diagnostics: const VisionDiagnostics(lastReason: 'token_rejected'),
+        );
+        final c = GuidanceController(
+          feedback: feedback,
+          itstId: '1850',
+          direction: 'st',
+          vision: vision,
+          allowSingleSource: false,
+          clock: () => 0,
+          fetch: (itstId, direction, apiKey, {required nowMs}) async =>
+              const SignalReading(SignalColor.green, 20, SignalSource.api),
+        );
+        await c.tickOnce();
+        expect(c.decision, Decision.wait);
+        expect(c.reason, DecisionReason.clipTokenRejected);
+        expect(speech.spoken.last, contains('기기 토큰 설정을 확인해 주세요'));
+        c.dispose();
+      },
+    );
+
+    test(
+      'status=failed 인데 진단이 token_rejected 가 아니면(폰 카메라 일반 실패) cameraUnavailable 유지',
+      () async {
+        final vision = FakeVisionSource(
+          const SignalReading(SignalColor.unknown, null, SignalSource.vision),
+          status: VisionSourceStatus.failed,
+          diagnostics: const VisionDiagnostics(lastReason: 'frame_error'),
+        );
+        final c = GuidanceController(
+          feedback: feedback,
+          itstId: '1850',
+          direction: 'st',
+          vision: vision,
+          allowSingleSource: false,
+          clock: () => 0,
+          fetch: (itstId, direction, apiKey, {required nowMs}) async =>
+              const SignalReading(SignalColor.green, 20, SignalSource.api),
+        );
+        await c.tickOnce();
+        expect(c.reason, DecisionReason.cameraUnavailable);
+        c.dispose();
+      },
+    );
+
     test('status=unreachable + 카메라 불가 → clipUnreachable, 결정은 wait', () async {
       final vision = FakeVisionSource(
         const SignalReading(SignalColor.unknown, null, SignalSource.vision),

@@ -38,6 +38,12 @@ enum DecisionReason {
   /// wait). 사용자가 취할 행동은 "클립 전원·Wi-Fi 확인".
   clipUnreachable,
 
+  /// 클립 카메라가 기기 토큰을 거부(401/403). [evaluate]는 만들지 않는다 —
+  /// GuidanceController가 VisionSource 상태 failed + 진단 token_rejected 를 보고
+  /// cameraUnavailable을 이 값으로 바꾼다(결정은 wait). "신호등을 향하라"는 안내는
+  /// 이 상황에서 거짓이므로 "토큰 설정을 확인하라"로 말한다.
+  clipTokenRejected,
+
   /// 카메라는 쓸 수 있는데 API 판독이 없음(미응답·unknown·stale). 사용자가
   /// 취할 행동은 없고 그냥 기다린다.
   apiUnavailable,
@@ -73,6 +79,8 @@ String decisionReasonText(DecisionReason reason) {
       return '카메라 권한이 없습니다. 설정에서 카메라를 허용해 주세요';
     case DecisionReason.clipUnreachable:
       return '클립 카메라에 연결할 수 없습니다. 전원과 Wi-Fi 연결을 확인해 주세요';
+    case DecisionReason.clipTokenRejected:
+      return '클립 카메라가 접속을 거부했습니다. 기기 토큰 설정을 확인해 주세요';
     case DecisionReason.apiUnavailable:
       return '신호 정보를 아직 받지 못했습니다';
     case DecisionReason.apiKeyMissing:

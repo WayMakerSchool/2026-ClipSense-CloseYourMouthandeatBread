@@ -10,6 +10,7 @@ import 'package:camera/camera.dart' show CameraController;
 import 'package:flutter/foundation.dart';
 
 import '../camera/camera_vision_source.dart';
+import '../clip/clip_vision_source.dart' show kClipTokenRejectedReason;
 import '../signals/signal_reading.dart';
 import '../signals/signal_api.dart' as api;
 import '../signals/vision_adapter.dart';
@@ -230,6 +231,13 @@ class GuidanceController extends ChangeNotifier {
           result = DecisionResult(
             result.decision,
             DecisionReason.clipUnreachable,
+          );
+        } else if (status == VisionSourceStatus.failed &&
+            _vision?.diagnostics?.lastReason == kClipTokenRejectedReason) {
+          // 토큰 거부는 향해도 못 고친다 — 설정을 확인하라고 말한다.
+          result = DecisionResult(
+            result.decision,
+            DecisionReason.clipTokenRejected,
           );
         }
       }
