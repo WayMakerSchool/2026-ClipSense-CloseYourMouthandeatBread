@@ -128,6 +128,15 @@ void main() {
     now = 10000;
   });
 
+  /// 벽시계 고정 대기는 전체 스위트 부하에서 흔들린다 — 조건이 될 때까지(상한
+  /// 2초) 기다린다. 상한에 걸리면 expect 가 실패해 원인을 드러낸다.
+  Future<void> waitUntil(bool Function() condition) async {
+    final deadline = DateTime.now().add(const Duration(seconds: 2));
+    while (!condition() && DateTime.now().isBefore(deadline)) {
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+    }
+  }
+
   test('초기: idle, unknown, 프리뷰 없음(클립은 화면 프리뷰가 없다), 진단 없음', () {
     final s = make();
     expect(s.status, VisionSourceStatus.idle);
@@ -274,7 +283,7 @@ void main() {
     final s = make(poll: const Duration(milliseconds: 5));
     cam.script.add(() => failed(ClipFetchFailure.unauthorized, status: 403));
     await s.start();
-    await Future<void>.delayed(const Duration(milliseconds: 60));
+    await waitUntil(() => s.status == VisionSourceStatus.failed);
     expect(s.status, VisionSourceStatus.failed);
     expect(s.diagnostics?.lastReason, 'token_rejected');
     expect(s.latestReading.color, SignalColor.unknown);
@@ -347,13 +356,13 @@ void main() {
       return ok(seq: seq, captureUs: seq * 250000);
     });
     await s.start();
-    await Future<void>.delayed(const Duration(milliseconds: 80));
+    await waitUntil(() => cam.calls >= 3);
     expect(cam.calls, greaterThanOrEqualTo(3));
     expect(cam.maxInFlight, 1);
     await s.stop();
     final after = cam.calls;
     await Future<void>.delayed(const Duration(milliseconds: 40));
-    expect(cam.calls, after);
+    expect(cam.calls, after, reason: 'stop 뒤에는 새 요청이 없다');
   });
 
   test('start 를 여러 번 불러도 루프는 하나', () async {
