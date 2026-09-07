@@ -1,5 +1,7 @@
 """judge 이중 판단 단위 테스트. WALK는 오직 AND 만족일 때만.
 실행: python scripts/test_judge.py"""
+import dataclasses
+import math
 import sys
 from pathlib import Path
 
@@ -7,7 +9,14 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from signals import SignalReading, GREEN, RED, CLEARANCE, UNKNOWN, SRC_API, SRC_VISION
-from judge import decide, WALK, WAIT, UNKNOWN_DECISION
+from judge import (
+    decide, WALK, WAIT, UNKNOWN_DECISION,
+    evaluate, DecisionResult, ALL_REASONS, CONTROLLER_ONLY_REASONS, REASON_TEXT,
+    decision_reason_text,
+    REASON_READY, REASON_SOURCES_UNAVAILABLE, REASON_CAMERA_UNAVAILABLE,
+    REASON_API_UNAVAILABLE, REASON_RED_SIGNAL, REASON_CLEARANCE, REASON_CONFLICT,
+    REASON_REMAINING_UNAVAILABLE, REASON_REMAINING_INSUFFICIENT,
+)
 
 FAILURES = []
 
@@ -107,6 +116,85 @@ check("정책: API 잔여 충분해도 카메라 숫자가 더 짧으면 WAIT",
       decide(api(GREEN, 20), vis(GREEN, 3)) == WAIT)
 check("정책: API 잔여 충분·카메라 숫자 없음 → WALK",
       decide(api(GREEN, 20), vis(GREEN, None)) == WALK)
+
+# --- need_sec 검증: Dart _remainReason 은 need_sec 가 비유한·음수면 잔여 확인 불가로 본다.
+# 이전 Python 구현은 음수 need_sec 에 30 >= -1 로 WALK 를 냈다(Dart 와의 유일한 갈림).
+# NaN/∞ need_sec 는 비교가 False 라 이미 WAIT 였다 — 근거가 생긴 것만 새롭다.
+check("음수 need_sec → WAIT (이전 구현은 WALK — Dart 와 불일치였다)",
+      decide(api(GREEN, 30), vis(GREEN), need_sec=-1) == WAIT)
+check("NaN need_sec → WAIT", decide(api(GREEN, 30), vis(GREEN), need_sec=math.nan) == WAIT)
+check("Infinity need_sec → WAIT", decide(api(GREEN, 30), vis(GREEN), need_sec=math.inf) == WAIT)
+
+# --- evaluate(): 결정 + 근거 (근거 이름은 Dart DecisionReason 의 snake_case) ---
+check("evaluate: 음수 need_sec 근거는 remaining_unavailable",
+      evaluate(api(GREEN, 30), vis(GREEN), need_sec=-1)
+      == DecisionResult(WAIT, REASON_REMAINING_UNAVAILABLE))
+check("evaluate: 둘 다 초록·잔여 충분 → WALK + ready",
+      evaluate(api(GREEN, 30), vis(GREEN)) == DecisionResult(WALK, REASON_READY))
+check("evaluate: 둘 다 초록·잔여 부족 → remaining_insufficient",
+      evaluate(api(GREEN, 3.0), vis(GREEN)) == DecisionResult(WAIT, REASON_REMAINING_INSUFFICIENT))
+check("evaluate: 불일치 → conflict",
+      evaluate(api(GREEN), vis(RED)) == DecisionResult(WAIT, REASON_CONFLICT))
+check("evaluate: 둘 다 점멸 → clearance",
+      evaluate(api(CLEARANCE, 3), vis(CLEARANCE)) == DecisionResult(WAIT, REASON_CLEARANCE))
+check("evaluate: 둘 다 빨강 → red_signal",
+      evaluate(api(RED, None), vis(RED)) == DecisionResult(WAIT, REASON_RED_SIGNAL))
+check("evaluate: API 점멸·비전 빨강 → conflict (불일치가 점멸보다 먼저)",
+      evaluate(api(CLEARANCE, 3), vis(RED)) == DecisionResult(WAIT, REASON_CONFLICT))
+check("evaluate: API 초록·비전 UNKNOWN(엄격) → camera_unavailable",
+      evaluate(api(GREEN, 30), vis(UNKNOWN)) == DecisionResult(WAIT, REASON_CAMERA_UNAVAILABLE))
+check("evaluate: API None·비전 초록(엄격) → api_unavailable",
+      evaluate(None, vis(GREEN, 30)) == DecisionResult(WAIT, REASON_API_UNAVAILABLE))
+check("evaluate: 둘 다 None → UNKNOWN + sources_unavailable",
+      evaluate(None, None) == DecisionResult(UNKNOWN_DECISION, REASON_SOURCES_UNAVAILABLE))
+check("evaluate: API 잔여 None·카메라 숫자 20 → remaining_unavailable",
+      evaluate(api(GREEN, None), vis(GREEN, 20)) == DecisionResult(WAIT, REASON_REMAINING_UNAVAILABLE))
+check("evaluate: opt-in 비전 단독 초록 30 → WALK + ready",
+      evaluate(None, vis(GREEN, 30), allow_single_source=True) == DecisionResult(WALK, REASON_READY))
+
+# 전수 격자: decide 는 evaluate().decision 의 축약이고, evaluate 는 컨트롤러 전용 이유를
+# 절대 내지 않는다(판독값만 보므로 권한·연결·토큰·준비·정지·API 키를 알 수 없다).
+_readings = [None]
+for _color in (GREEN, RED, CLEARANCE, UNKNOWN):
+    for _remain in (None, 3.0, 30.0):
+        for _fresh in (0, 5000):
+            _readings.append(api(_color, _remain, fresh=_fresh))
+            _readings.append(vis(_color, _remain, fresh=_fresh))
+_wrapper_ok = True
+_controller_only_leak = []
+for _a in _readings:
+    for _v in _readings:
+        for _single in (False, True):
+            _r = evaluate(_a, _v, allow_single_source=_single)
+            if decide(_a, _v, allow_single_source=_single) != _r.decision:
+                _wrapper_ok = False
+            if _r.reason in CONTROLLER_ONLY_REASONS or _r.reason not in ALL_REASONS:
+                _controller_only_leak.append((_a, _v, _single, _r))
+check("decide 는 evaluate().decision 과 같다(전수 격자)", _wrapper_ok)
+check("evaluate 는 컨트롤러 전용 이유를 절대 내지 않는다(전수 격자)",
+      not _controller_only_leak, detail=str(_controller_only_leak[:3]))
+
+check("ALL_REASONS 는 15개·중복 없음·컨트롤러 전용 6개 포함",
+      len(ALL_REASONS) == 15 and len(set(ALL_REASONS)) == 15
+      and len(CONTROLLER_ONLY_REASONS) == 6 and CONTROLLER_ONLY_REASONS <= set(ALL_REASONS))
+check("REASON_TEXT 키 집합 = ALL_REASONS (더도 덜도 아님)",
+      set(REASON_TEXT) == set(ALL_REASONS),
+      detail=f"text에만 {set(REASON_TEXT) - set(ALL_REASONS)} / reasons에만 {set(ALL_REASONS) - set(REASON_TEXT)}")
+check("decision_reason_text 는 모든 이유에 문구가 있고 끝에 마침표가 없다",
+      all(decision_reason_text(r) and not decision_reason_text(r).endswith(".") for r in ALL_REASONS))
+try:
+    decision_reason_text("no_such_reason")
+    _unknown_raises = False
+except KeyError:
+    _unknown_raises = True
+check("decision_reason_text 는 모르는 이유에 KeyError(기본 문구로 덮지 않음)", _unknown_raises)
+try:
+    _result = evaluate(api(GREEN, 30), vis(GREEN))
+    _result.decision = WAIT
+    _frozen = False
+except dataclasses.FrozenInstanceError:
+    _frozen = True
+check("DecisionResult 는 불변", _frozen)
 
 print("=" * 50)
 if FAILURES:
