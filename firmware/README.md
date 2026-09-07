@@ -179,6 +179,58 @@ STA_ACTIVE 중 두절 → STA_RECONNECTING (5초 간격, 6회)
 - 프레임을 기기·서버에 저장하지 않는다
 - 촬영 중 LED 점등
 
+## 시뮬레이터로 앱 끝단 돌리기
+
+보드 없이 앱의 클립 경로(폴링·신선도·정지·재부팅·토큰 오류)를 끝까지 돌려 보는
+표준 라이브러리 가짜 펌웨어다(`scripts/clip_cam_sim.py`). `http_api.cpp`와 같은
+경로·상태코드·헤더·오류 본문을 내고, `frameSeq`는 획득 성공 시에만 올린다.
+**실기기 검증을 대신하지 않는다** — `X-Camera-Sensor: SIM`, `deviceId`
+`clipsense-cam-sim`으로 자신을 밝히며, 시뮬레이터로 찍은 시연 영상에는 반드시
+`SIM` 표시를 넣는다.
+
+```bash
+export CLIP_DEVICE_TOKEN=$(openssl rand -hex 16)   # 출력·커밋하지 않는다
+.venv/bin/python scripts/clip_cam_sim.py --port 8080
+#   기본: fixture 두 장(점등 f20 / 소등 f34)을 2회씩 순환 ≈ 250ms 폴링에서 1Hz 점멸
+.venv/bin/python scripts/check_clip_cam_contract.py http://127.0.0.1:8080
+#   계약 검사 — 보드에도 그대로 쓴다(요약 줄에 대상이 SIM 인지 보드인지 찍힌다)
+
+cd app && flutter run -d macos \
+  --dart-define=TDATA_KEY='발급받은_API_키' \
+  --dart-define=CLIP_CAM_HOST=127.0.0.1:8080 \
+  --dart-define=CLIP_CAM_TOKEN="$CLIP_DEVICE_TOKEN"
+```
+
+- 초록 확정(walk 경로)을 보려면 점등 프레임만 준다: `--jpeg app/test/fixtures/clip_qvga_f20.jpg`.
+- Android 에뮬레이터는 `CLIP_CAM_HOST=10.0.2.2:8080`, 실제 폰은 `--host 0.0.0.0`으로
+  띄우고 PC의 LAN IP를 준다(폰 왕복은 미검증).
+- `--video 경로.mp4`는 cv2가 있을 때만 쓴다(중앙 4:3 → 320x240, 실시간 반복 재생).
+- 단위 테스트: `scripts/test_clip_cam_sim.py`(러너 `run_unit_tests.py`에 등록, CI python job).
+
+실행 중 장애 주입 — 계약 밖 제어 엔드포인트 `/__sim/…`이며 보드에는 없다:
+
+```bash
+curl -X POST http://127.0.0.1:8080/__sim/fault -d '{"mode":"freeze"}'
+curl -X POST http://127.0.0.1:8080/__sim/fault -d '{"mode":"stall","hold_ms":1500}'
+curl http://127.0.0.1:8080/__sim/state
+```
+
+| mode | 시뮬레이터 동작 | 앱이 보여야 하는 동작 |
+|---|---|---|
+| `none` | 정상 | accepted 프레임 8장 뒤 판독 |
+| `freeze` | 같은 프레임·같은 `X-Frame-Seq`·`X-Capture-Uptime-Us` 재전송 | `same_frame` → 2초 뒤 wait, 이력 리셋 |
+| `capture_failed` | 503 `capture_failed` | 즉시 unknown, 이력 리셋 |
+| `busy` | 409 `capture_busy` | 즉시 unknown, 이력 리셋 |
+| `reboot` | 새 `bootId`, uptime·`frameSeq` 0부터(1회성, 곧 `none`) | 이력 폐기 후 새로 쌓음 |
+| `stall` | 획득 뒤 `hold_ms`(기본 1500) 동안 응답 보류 | 800ms 타임아웃 → `unreachable`, "전원과 Wi-Fi 연결을 확인해 주세요" |
+| `drop_headers` | `X-Frame-Seq` 누락 | `bad_headers` → unknown |
+| `wrong_content_type` | 200 `text/html`(캡티브 포털 흉내) | `bad_content_type` → unknown |
+
+토큰을 틀리게 주면(`--dart-define=CLIP_CAM_TOKEN=wrong`) 403 → `token_rejected`,
+"기기 토큰 설정을 확인해 주세요"가 나오고 폴링이 멈춘다. 빈 토큰 헤더는 401이다
+(ESP32 코어 3.3.1 `WebServer::hasHeader`가 빈 값을 "없음"으로 보는 것을 따랐다 —
+라이브러리 소스 기준, 실기기 미검증).
+
 ## 실기기 검증 전 주장하지 않는 것
 
 보드가 손에 들어오기 전까지 아래는 **측정되지 않았다.**
