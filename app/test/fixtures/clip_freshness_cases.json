@@ -1,0 +1,1401 @@
+{
+ "schema": "clipsense-clip-freshness-golden-v1",
+ "source": "app/lib/clip/clip_snapshot.dart parseClipHeaders · app/lib/clip/clip_freshness.dart ClipFreshnessTracker — Dart 가 기준, Python clip_snapshot.py 가 미러",
+ "contract": {
+  "token_header": "X-Clip-Device-Token",
+  "frame_seq_header": "X-Frame-Seq",
+  "capture_uptime_header": "X-Capture-Uptime-Us",
+  "response_uptime_header": "X-Response-Uptime-Us",
+  "boot_id_header": "X-Boot-Id",
+  "firmware_version_header": "X-Firmware-Version",
+  "camera_sensor_header": "X-Camera-Sensor",
+  "schema_version": "clipsense-camera-api-v1",
+  "capture_path": "/capture",
+  "health_path": "/health",
+  "jpeg_content_type": "image/jpeg"
+ },
+ "verdicts": [
+  "accepted",
+  "same_frame",
+  "replay_or_reorder"
+ ],
+ "header_cases": [
+  {
+   "name": "H01 README 예시 헤더 → 메타데이터(12.284ms 올림 13)",
+   "headers": {
+    "X-Frame-Seq": "1482",
+    "X-Capture-Uptime-Us": "372800221",
+    "X-Response-Uptime-Us": "372812505",
+    "X-Boot-Id": "a83f219c",
+    "X-Firmware-Version": "0.2.0",
+    "X-Camera-Sensor": "OV3660"
+   },
+   "expect": {
+    "frame_seq": 1482,
+    "capture_uptime_us": 372800221,
+    "response_uptime_us": 372812505,
+    "boot_id": "a83f219c",
+    "firmware_version": "0.2.0",
+    "camera_sensor": "OV3660",
+    "server_frame_age_ms": 13
+   }
+  },
+  {
+   "name": "H02 소문자 키(dart:io 실전송)도 같은 결과",
+   "headers": {
+    "x-frame-seq": "1482",
+    "x-capture-uptime-us": "372800221",
+    "x-response-uptime-us": "372812505",
+    "x-boot-id": "a83f219c",
+    "x-firmware-version": "0.2.0",
+    "x-camera-sensor": "OV3660"
+   },
+   "expect": {
+    "frame_seq": 1482,
+    "capture_uptime_us": 372800221,
+    "response_uptime_us": 372812505,
+    "boot_id": "a83f219c",
+    "firmware_version": "0.2.0",
+    "camera_sensor": "OV3660",
+    "server_frame_age_ms": 13
+   }
+  },
+  {
+   "name": "H03 뒤섞인 대소문자 키·선택 헤더 없음",
+   "headers": {
+    "x-FRAME-seq": "7",
+    "X-capture-Uptime-US": "100",
+    "x-Response-uptime-us": "100",
+    "X-BOOT-ID": "b1"
+   },
+   "expect": {
+    "frame_seq": 7,
+    "capture_uptime_us": 100,
+    "response_uptime_us": 100,
+    "boot_id": "b1",
+    "firmware_version": null,
+    "camera_sensor": null,
+    "server_frame_age_ms": 0
+   }
+  },
+  {
+   "name": "H04 X-Frame-Seq 없음 → 무효",
+   "headers": {
+    "X-Capture-Uptime-Us": "372800221",
+    "X-Response-Uptime-Us": "372812505",
+    "X-Boot-Id": "a83f219c",
+    "X-Firmware-Version": "0.2.0",
+    "X-Camera-Sensor": "OV3660"
+   },
+   "expect": null
+  },
+  {
+   "name": "H05 X-Capture-Uptime-Us 없음 → 무효",
+   "headers": {
+    "X-Frame-Seq": "1482",
+    "X-Response-Uptime-Us": "372812505",
+    "X-Boot-Id": "a83f219c",
+    "X-Firmware-Version": "0.2.0",
+    "X-Camera-Sensor": "OV3660"
+   },
+   "expect": null
+  },
+  {
+   "name": "H06 X-Response-Uptime-Us 없음 → 무효",
+   "headers": {
+    "X-Frame-Seq": "1482",
+    "X-Capture-Uptime-Us": "372800221",
+    "X-Boot-Id": "a83f219c",
+    "X-Firmware-Version": "0.2.0",
+    "X-Camera-Sensor": "OV3660"
+   },
+   "expect": null
+  },
+  {
+   "name": "H07 X-Boot-Id 없음 → 무효",
+   "headers": {
+    "X-Frame-Seq": "1482",
+    "X-Capture-Uptime-Us": "372800221",
+    "X-Response-Uptime-Us": "372812505",
+    "X-Firmware-Version": "0.2.0",
+    "X-Camera-Sensor": "OV3660"
+   },
+   "expect": null
+  },
+  {
+   "name": "H08 seq '+5'(부호) → 무효",
+   "headers": {
+    "X-Frame-Seq": "+5",
+    "X-Capture-Uptime-Us": "372800221",
+    "X-Response-Uptime-Us": "372812505",
+    "X-Boot-Id": "a83f219c",
+    "X-Firmware-Version": "0.2.0",
+    "X-Camera-Sensor": "OV3660"
+   },
+   "expect": null
+  },
+  {
+   "name": "H09 seq '0x10'(16진) → 무효",
+   "headers": {
+    "X-Frame-Seq": "0x10",
+    "X-Capture-Uptime-Us": "372800221",
+    "X-Response-Uptime-Us": "372812505",
+    "X-Boot-Id": "a83f219c",
+    "X-Firmware-Version": "0.2.0",
+    "X-Camera-Sensor": "OV3660"
+   },
+   "expect": null
+  },
+  {
+   "name": "H10 seq '1e3'(지수) → 무효",
+   "headers": {
+    "X-Frame-Seq": "1e3",
+    "X-Capture-Uptime-Us": "372800221",
+    "X-Response-Uptime-Us": "372812505",
+    "X-Boot-Id": "a83f219c",
+    "X-Firmware-Version": "0.2.0",
+    "X-Camera-Sensor": "OV3660"
+   },
+   "expect": null
+  },
+  {
+   "name": "H11 seq '1.5'(소수) → 무효",
+   "headers": {
+    "X-Frame-Seq": "1.5",
+    "X-Capture-Uptime-Us": "372800221",
+    "X-Response-Uptime-Us": "372812505",
+    "X-Boot-Id": "a83f219c",
+    "X-Firmware-Version": "0.2.0",
+    "X-Camera-Sensor": "OV3660"
+   },
+   "expect": null
+  },
+  {
+   "name": "H12 seq '-1'(음수) → 무효",
+   "headers": {
+    "X-Frame-Seq": "-1",
+    "X-Capture-Uptime-Us": "372800221",
+    "X-Response-Uptime-Us": "372812505",
+    "X-Boot-Id": "a83f219c",
+    "X-Firmware-Version": "0.2.0",
+    "X-Camera-Sensor": "OV3660"
+   },
+   "expect": null
+  },
+  {
+   "name": "H13 seq 'NaN' → 무효",
+   "headers": {
+    "X-Frame-Seq": "NaN",
+    "X-Capture-Uptime-Us": "372800221",
+    "X-Response-Uptime-Us": "372812505",
+    "X-Boot-Id": "a83f219c",
+    "X-Firmware-Version": "0.2.0",
+    "X-Camera-Sensor": "OV3660"
+   },
+   "expect": null
+  },
+  {
+   "name": "H14 seq 'Infinity' → 무효",
+   "headers": {
+    "X-Frame-Seq": "Infinity",
+    "X-Capture-Uptime-Us": "372800221",
+    "X-Response-Uptime-Us": "372812505",
+    "X-Boot-Id": "a83f219c",
+    "X-Firmware-Version": "0.2.0",
+    "X-Camera-Sensor": "OV3660"
+   },
+   "expect": null
+  },
+  {
+   "name": "H15 seq ''(빈 값) → 무효",
+   "headers": {
+    "X-Frame-Seq": "",
+    "X-Capture-Uptime-Us": "372800221",
+    "X-Response-Uptime-Us": "372812505",
+    "X-Boot-Id": "a83f219c",
+    "X-Firmware-Version": "0.2.0",
+    "X-Camera-Sensor": "OV3660"
+   },
+   "expect": null
+  },
+  {
+   "name": "H16 seq ' '(공백뿐) → 무효",
+   "headers": {
+    "X-Frame-Seq": " ",
+    "X-Capture-Uptime-Us": "372800221",
+    "X-Response-Uptime-Us": "372812505",
+    "X-Boot-Id": "a83f219c",
+    "X-Firmware-Version": "0.2.0",
+    "X-Camera-Sensor": "OV3660"
+   },
+   "expect": null
+  },
+  {
+   "name": "H17 seq ' 12 '(앞뒤 공백) → 12",
+   "headers": {
+    "X-Frame-Seq": " 12 ",
+    "X-Capture-Uptime-Us": "372800221",
+    "X-Response-Uptime-Us": "372812505",
+    "X-Boot-Id": "a83f219c",
+    "X-Firmware-Version": "0.2.0",
+    "X-Camera-Sensor": "OV3660"
+   },
+   "expect": {
+    "frame_seq": 12,
+    "capture_uptime_us": 372800221,
+    "response_uptime_us": 372812505,
+    "boot_id": "a83f219c",
+    "firmware_version": "0.2.0",
+    "camera_sensor": "OV3660",
+    "server_frame_age_ms": 13
+   }
+  },
+  {
+   "name": "H18 seq '0' → 0 허용",
+   "headers": {
+    "X-Frame-Seq": "0",
+    "X-Capture-Uptime-Us": "372800221",
+    "X-Response-Uptime-Us": "372812505",
+    "X-Boot-Id": "a83f219c",
+    "X-Firmware-Version": "0.2.0",
+    "X-Camera-Sensor": "OV3660"
+   },
+   "expect": {
+    "frame_seq": 0,
+    "capture_uptime_us": 372800221,
+    "response_uptime_us": 372812505,
+    "boot_id": "a83f219c",
+    "firmware_version": "0.2.0",
+    "camera_sensor": "OV3660",
+    "server_frame_age_ms": 13
+   }
+  },
+  {
+   "name": "H19 seq U+0663(아랍-인도 숫자 3) → 무효",
+   "headers": {
+    "X-Frame-Seq": "\u0663",
+    "X-Capture-Uptime-Us": "372800221",
+    "X-Response-Uptime-Us": "372812505",
+    "X-Boot-Id": "a83f219c",
+    "X-Firmware-Version": "0.2.0",
+    "X-Camera-Sensor": "OV3660"
+   },
+   "expect": null
+  },
+  {
+   "name": "H20 seq '1_000'(밑줄) → 무효",
+   "headers": {
+    "X-Frame-Seq": "1_000",
+    "X-Capture-Uptime-Us": "372800221",
+    "X-Response-Uptime-Us": "372812505",
+    "X-Boot-Id": "a83f219c",
+    "X-Firmware-Version": "0.2.0",
+    "X-Camera-Sensor": "OV3660"
+   },
+   "expect": null
+  },
+  {
+   "name": "H21 capture '1e3' → 무효",
+   "headers": {
+    "X-Frame-Seq": "1482",
+    "X-Capture-Uptime-Us": "1e3",
+    "X-Response-Uptime-Us": "372812505",
+    "X-Boot-Id": "a83f219c",
+    "X-Firmware-Version": "0.2.0",
+    "X-Camera-Sensor": "OV3660"
+   },
+   "expect": null
+  },
+  {
+   "name": "H22 response '+5' → 무효",
+   "headers": {
+    "X-Frame-Seq": "1482",
+    "X-Capture-Uptime-Us": "372800221",
+    "X-Response-Uptime-Us": "+5",
+    "X-Boot-Id": "a83f219c",
+    "X-Firmware-Version": "0.2.0",
+    "X-Camera-Sensor": "OV3660"
+   },
+   "expect": null
+  },
+  {
+   "name": "H23 response < capture → 무효",
+   "headers": {
+    "X-Frame-Seq": "1482",
+    "X-Capture-Uptime-Us": "100",
+    "X-Response-Uptime-Us": "99",
+    "X-Boot-Id": "a83f219c",
+    "X-Firmware-Version": "0.2.0",
+    "X-Camera-Sensor": "OV3660"
+   },
+   "expect": null
+  },
+  {
+   "name": "H24 response == capture → 유효, 나이 0",
+   "headers": {
+    "X-Frame-Seq": "1482",
+    "X-Capture-Uptime-Us": "100",
+    "X-Response-Uptime-Us": "100",
+    "X-Boot-Id": "a83f219c",
+    "X-Firmware-Version": "0.2.0",
+    "X-Camera-Sensor": "OV3660"
+   },
+   "expect": {
+    "frame_seq": 1482,
+    "capture_uptime_us": 100,
+    "response_uptime_us": 100,
+    "boot_id": "a83f219c",
+    "firmware_version": "0.2.0",
+    "camera_sensor": "OV3660",
+    "server_frame_age_ms": 0
+   }
+  },
+  {
+   "name": "H25 나이 올림: 정확히 1000µs → 1ms",
+   "headers": {
+    "X-Frame-Seq": "1482",
+    "X-Capture-Uptime-Us": "1000",
+    "X-Response-Uptime-Us": "2000",
+    "X-Boot-Id": "a83f219c",
+    "X-Firmware-Version": "0.2.0",
+    "X-Camera-Sensor": "OV3660"
+   },
+   "expect": {
+    "frame_seq": 1482,
+    "capture_uptime_us": 1000,
+    "response_uptime_us": 2000,
+    "boot_id": "a83f219c",
+    "firmware_version": "0.2.0",
+    "camera_sensor": "OV3660",
+    "server_frame_age_ms": 1
+   }
+  },
+  {
+   "name": "H26 나이 올림: 1µs → 1ms",
+   "headers": {
+    "X-Frame-Seq": "1482",
+    "X-Capture-Uptime-Us": "1000",
+    "X-Response-Uptime-Us": "1001",
+    "X-Boot-Id": "a83f219c",
+    "X-Firmware-Version": "0.2.0",
+    "X-Camera-Sensor": "OV3660"
+   },
+   "expect": {
+    "frame_seq": 1482,
+    "capture_uptime_us": 1000,
+    "response_uptime_us": 1001,
+    "boot_id": "a83f219c",
+    "firmware_version": "0.2.0",
+    "camera_sensor": "OV3660",
+    "server_frame_age_ms": 1
+   }
+  },
+  {
+   "name": "H27 uint64 정밀도(2^53 초과)",
+   "headers": {
+    "X-Frame-Seq": "1482",
+    "X-Capture-Uptime-Us": "9007199254740993",
+    "X-Response-Uptime-Us": "9007199254741993",
+    "X-Boot-Id": "a83f219c",
+    "X-Firmware-Version": "0.2.0",
+    "X-Camera-Sensor": "OV3660"
+   },
+   "expect": {
+    "frame_seq": 1482,
+    "capture_uptime_us": 9007199254740993,
+    "response_uptime_us": 9007199254741993,
+    "boot_id": "a83f219c",
+    "firmware_version": "0.2.0",
+    "camera_sensor": "OV3660",
+    "server_frame_age_ms": 1
+   }
+  },
+  {
+   "name": "H28 int64 최대(2^63-1) 허용",
+   "headers": {
+    "X-Frame-Seq": "1482",
+    "X-Capture-Uptime-Us": "9223372036854775807",
+    "X-Response-Uptime-Us": "9223372036854775807",
+    "X-Boot-Id": "a83f219c",
+    "X-Firmware-Version": "0.2.0",
+    "X-Camera-Sensor": "OV3660"
+   },
+   "expect": {
+    "frame_seq": 1482,
+    "capture_uptime_us": 9223372036854775807,
+    "response_uptime_us": 9223372036854775807,
+    "boot_id": "a83f219c",
+    "firmware_version": "0.2.0",
+    "camera_sensor": "OV3660",
+    "server_frame_age_ms": 0
+   }
+  },
+  {
+   "name": "H29 2^63(int64 넘침) → 무효",
+   "headers": {
+    "X-Frame-Seq": "1482",
+    "X-Capture-Uptime-Us": "9223372036854775808",
+    "X-Response-Uptime-Us": "9223372036854775808",
+    "X-Boot-Id": "a83f219c",
+    "X-Firmware-Version": "0.2.0",
+    "X-Camera-Sensor": "OV3660"
+   },
+   "expect": null
+  },
+  {
+   "name": "H30 20자리 → 무효",
+   "headers": {
+    "X-Frame-Seq": "12345678901234567890",
+    "X-Capture-Uptime-Us": "372800221",
+    "X-Response-Uptime-Us": "372812505",
+    "X-Boot-Id": "a83f219c",
+    "X-Firmware-Version": "0.2.0",
+    "X-Camera-Sensor": "OV3660"
+   },
+   "expect": null
+  },
+  {
+   "name": "H31 bootId '' → 무효",
+   "headers": {
+    "X-Frame-Seq": "1482",
+    "X-Capture-Uptime-Us": "372800221",
+    "X-Response-Uptime-Us": "372812505",
+    "X-Boot-Id": "",
+    "X-Firmware-Version": "0.2.0",
+    "X-Camera-Sensor": "OV3660"
+   },
+   "expect": null
+  },
+  {
+   "name": "H32 bootId '   ' → 무효",
+   "headers": {
+    "X-Frame-Seq": "1482",
+    "X-Capture-Uptime-Us": "372800221",
+    "X-Response-Uptime-Us": "372812505",
+    "X-Boot-Id": "   ",
+    "X-Firmware-Version": "0.2.0",
+    "X-Camera-Sensor": "OV3660"
+   },
+   "expect": null
+  },
+  {
+   "name": "H33 bootId ' a83f219c ' → 'a83f219c'",
+   "headers": {
+    "X-Frame-Seq": "1482",
+    "X-Capture-Uptime-Us": "372800221",
+    "X-Response-Uptime-Us": "372812505",
+    "X-Boot-Id": " a83f219c ",
+    "X-Firmware-Version": "0.2.0",
+    "X-Camera-Sensor": "OV3660"
+   },
+   "expect": {
+    "frame_seq": 1482,
+    "capture_uptime_us": 372800221,
+    "response_uptime_us": 372812505,
+    "boot_id": "a83f219c",
+    "firmware_version": "0.2.0",
+    "camera_sensor": "OV3660",
+    "server_frame_age_ms": 13
+   }
+  },
+  {
+   "name": "H34 선택 헤더가 빈 문자열이면 null",
+   "headers": {
+    "X-Frame-Seq": "1482",
+    "X-Capture-Uptime-Us": "372800221",
+    "X-Response-Uptime-Us": "372812505",
+    "X-Boot-Id": "a83f219c",
+    "X-Firmware-Version": "",
+    "X-Camera-Sensor": ""
+   },
+   "expect": {
+    "frame_seq": 1482,
+    "capture_uptime_us": 372800221,
+    "response_uptime_us": 372812505,
+    "boot_id": "a83f219c",
+    "firmware_version": null,
+    "camera_sensor": null,
+    "server_frame_age_ms": 13
+   }
+  },
+  {
+   "name": "H35 관계없는 헤더(Content-Type·Cache-Control)는 무시",
+   "headers": {
+    "X-Frame-Seq": "1482",
+    "X-Capture-Uptime-Us": "372800221",
+    "X-Response-Uptime-Us": "372812505",
+    "X-Boot-Id": "a83f219c",
+    "X-Firmware-Version": "0.2.0",
+    "X-Camera-Sensor": "OV3660",
+    "Content-Type": "image/jpeg",
+    "Cache-Control": "no-store"
+   },
+   "expect": {
+    "frame_seq": 1482,
+    "capture_uptime_us": 372800221,
+    "response_uptime_us": 372812505,
+    "boot_id": "a83f219c",
+    "firmware_version": "0.2.0",
+    "camera_sensor": "OV3660",
+    "server_frame_age_ms": 13
+   }
+  },
+  {
+   "name": "H36 seq U+001C+'12'(정보 구분자) → 무효 (Dart trim 은 U+001C 를 안 자른다)",
+   "headers": {
+    "X-Frame-Seq": "\u001c12",
+    "X-Capture-Uptime-Us": "372800221",
+    "X-Response-Uptime-Us": "372812505",
+    "X-Boot-Id": "a83f219c",
+    "X-Firmware-Version": "0.2.0",
+    "X-Camera-Sensor": "OV3660"
+   },
+   "expect": null
+  },
+  {
+   "name": "H37 seq U+FEFF+'12'(BOM) → 12 (Dart trim 은 BOM 을 자른다)",
+   "headers": {
+    "X-Frame-Seq": "\ufeff12",
+    "X-Capture-Uptime-Us": "372800221",
+    "X-Response-Uptime-Us": "372812505",
+    "X-Boot-Id": "a83f219c",
+    "X-Firmware-Version": "0.2.0",
+    "X-Camera-Sensor": "OV3660"
+   },
+   "expect": {
+    "frame_seq": 12,
+    "capture_uptime_us": 372800221,
+    "response_uptime_us": 372812505,
+    "boot_id": "a83f219c",
+    "firmware_version": "0.2.0",
+    "camera_sensor": "OV3660",
+    "server_frame_age_ms": 13
+   }
+  },
+  {
+   "name": "H38 seq '12'+U+00A0(NBSP) → 12",
+   "headers": {
+    "X-Frame-Seq": "12\u00a0",
+    "X-Capture-Uptime-Us": "372800221",
+    "X-Response-Uptime-Us": "372812505",
+    "X-Boot-Id": "a83f219c",
+    "X-Firmware-Version": "0.2.0",
+    "X-Camera-Sensor": "OV3660"
+   },
+   "expect": {
+    "frame_seq": 12,
+    "capture_uptime_us": 372800221,
+    "response_uptime_us": 372812505,
+    "boot_id": "a83f219c",
+    "firmware_version": "0.2.0",
+    "camera_sensor": "OV3660",
+    "server_frame_age_ms": 13
+   }
+  },
+  {
+   "name": "H39 seq U+3000(전각 공백)+'12' → 12",
+   "headers": {
+    "X-Frame-Seq": "\u300012",
+    "X-Capture-Uptime-Us": "372800221",
+    "X-Response-Uptime-Us": "372812505",
+    "X-Boot-Id": "a83f219c",
+    "X-Firmware-Version": "0.2.0",
+    "X-Camera-Sensor": "OV3660"
+   },
+   "expect": {
+    "frame_seq": 12,
+    "capture_uptime_us": 372800221,
+    "response_uptime_us": 372812505,
+    "boot_id": "a83f219c",
+    "firmware_version": "0.2.0",
+    "camera_sensor": "OV3660",
+    "server_frame_age_ms": 13
+   }
+  },
+  {
+   "name": "H40 seq U+001F+'12'(단위 구분자) → 무효",
+   "headers": {
+    "X-Frame-Seq": "\u001f12",
+    "X-Capture-Uptime-Us": "372800221",
+    "X-Response-Uptime-Us": "372812505",
+    "X-Boot-Id": "a83f219c",
+    "X-Firmware-Version": "0.2.0",
+    "X-Camera-Sensor": "OV3660"
+   },
+   "expect": null
+  }
+ ],
+ "sequences": [
+  {
+   "name": "S01 첫 프레임 accepted: 나이 = rtt + 서버 나이",
+   "steps": [
+    {
+     "meta": {
+      "seq": 1,
+      "capture": 1000000,
+      "response": 1012000,
+      "boot": "boot-a"
+     },
+     "rtt_ms": 84,
+     "received_mono_ms": 5000,
+     "expect": {
+      "verdict": "accepted",
+      "boot_changed": false,
+      "conservative_age_ms": 96,
+      "captured_at_mono_ms": 4904,
+      "last_accepted_seq": 1
+     }
+    }
+   ]
+  },
+  {
+   "name": "S02 정지(freeze): 같은 프레임 반복 → same_frame, 신선도 미갱신",
+   "steps": [
+    {
+     "meta": {
+      "seq": 1,
+      "capture": 1000000,
+      "response": 1012000,
+      "boot": "boot-a"
+     },
+     "rtt_ms": 10,
+     "received_mono_ms": 1000,
+     "expect": {
+      "verdict": "accepted",
+      "boot_changed": false,
+      "conservative_age_ms": 22,
+      "captured_at_mono_ms": 978,
+      "last_accepted_seq": 1
+     }
+    },
+    {
+     "meta": {
+      "seq": 1,
+      "capture": 1000000,
+      "response": 1012000,
+      "boot": "boot-a"
+     },
+     "rtt_ms": 10,
+     "received_mono_ms": 3000,
+     "expect": {
+      "verdict": "same_frame",
+      "boot_changed": false,
+      "conservative_age_ms": 22,
+      "captured_at_mono_ms": null,
+      "last_accepted_seq": 1
+     }
+    },
+    {
+     "meta": {
+      "seq": 1,
+      "capture": 1000000,
+      "response": 1012000,
+      "boot": "boot-a"
+     },
+     "rtt_ms": 30,
+     "received_mono_ms": 6000,
+     "expect": {
+      "verdict": "same_frame",
+      "boot_changed": false,
+      "conservative_age_ms": 42,
+      "captured_at_mono_ms": null,
+      "last_accepted_seq": 1
+     }
+    }
+   ]
+  },
+  {
+   "name": "S03 진행: seq·촬영시각 증가 → accepted",
+   "steps": [
+    {
+     "meta": {
+      "seq": 1,
+      "capture": 100,
+      "response": 100,
+      "boot": "boot-a"
+     },
+     "rtt_ms": 0,
+     "received_mono_ms": 0,
+     "expect": {
+      "verdict": "accepted",
+      "boot_changed": false,
+      "conservative_age_ms": 0,
+      "captured_at_mono_ms": 0,
+      "last_accepted_seq": 1
+     }
+    },
+    {
+     "meta": {
+      "seq": 2,
+      "capture": 250000,
+      "response": 251000,
+      "boot": "boot-a"
+     },
+     "rtt_ms": 5,
+     "received_mono_ms": 300,
+     "expect": {
+      "verdict": "accepted",
+      "boot_changed": false,
+      "conservative_age_ms": 6,
+      "captured_at_mono_ms": 294,
+      "last_accepted_seq": 2
+     }
+    }
+   ]
+  },
+  {
+   "name": "S04 seq 역전 → replay_or_reorder(촬영시각은 증가해도)",
+   "steps": [
+    {
+     "meta": {
+      "seq": 5,
+      "capture": 500,
+      "response": 500,
+      "boot": "boot-a"
+     },
+     "rtt_ms": 0,
+     "received_mono_ms": 0,
+     "expect": {
+      "verdict": "accepted",
+      "boot_changed": false,
+      "conservative_age_ms": 0,
+      "captured_at_mono_ms": 0,
+      "last_accepted_seq": 5
+     }
+    },
+    {
+     "meta": {
+      "seq": 4,
+      "capture": 600,
+      "response": 600,
+      "boot": "boot-a"
+     },
+     "rtt_ms": 0,
+     "received_mono_ms": 10,
+     "expect": {
+      "verdict": "replay_or_reorder",
+      "boot_changed": false,
+      "conservative_age_ms": 0,
+      "captured_at_mono_ms": null,
+      "last_accepted_seq": 5
+     }
+    }
+   ]
+  },
+  {
+   "name": "S05 seq 증가·촬영시각 역행(같은 boot) → replay_or_reorder",
+   "steps": [
+    {
+     "meta": {
+      "seq": 5,
+      "capture": 500,
+      "response": 500,
+      "boot": "boot-a"
+     },
+     "rtt_ms": 0,
+     "received_mono_ms": 0,
+     "expect": {
+      "verdict": "accepted",
+      "boot_changed": false,
+      "conservative_age_ms": 0,
+      "captured_at_mono_ms": 0,
+      "last_accepted_seq": 5
+     }
+    },
+    {
+     "meta": {
+      "seq": 6,
+      "capture": 400,
+      "response": 400,
+      "boot": "boot-a"
+     },
+     "rtt_ms": 0,
+     "received_mono_ms": 10,
+     "expect": {
+      "verdict": "replay_or_reorder",
+      "boot_changed": false,
+      "conservative_age_ms": 0,
+      "captured_at_mono_ms": null,
+      "last_accepted_seq": 5
+     }
+    }
+   ]
+  },
+  {
+   "name": "S06 같은 seq·다른 촬영시각(원자성 위반) → replay_or_reorder",
+   "steps": [
+    {
+     "meta": {
+      "seq": 5,
+      "capture": 500,
+      "response": 500,
+      "boot": "boot-a"
+     },
+     "rtt_ms": 0,
+     "received_mono_ms": 0,
+     "expect": {
+      "verdict": "accepted",
+      "boot_changed": false,
+      "conservative_age_ms": 0,
+      "captured_at_mono_ms": 0,
+      "last_accepted_seq": 5
+     }
+    },
+    {
+     "meta": {
+      "seq": 5,
+      "capture": 900,
+      "response": 900,
+      "boot": "boot-a"
+     },
+     "rtt_ms": 0,
+     "received_mono_ms": 10,
+     "expect": {
+      "verdict": "replay_or_reorder",
+      "boot_changed": false,
+      "conservative_age_ms": 0,
+      "captured_at_mono_ms": null,
+      "last_accepted_seq": 5
+     }
+    }
+   ]
+  },
+  {
+   "name": "S07 거부는 고수위를 낮추지 않는다",
+   "steps": [
+    {
+     "meta": {
+      "seq": 5,
+      "capture": 500,
+      "response": 500,
+      "boot": "boot-a"
+     },
+     "rtt_ms": 0,
+     "received_mono_ms": 0,
+     "expect": {
+      "verdict": "accepted",
+      "boot_changed": false,
+      "conservative_age_ms": 0,
+      "captured_at_mono_ms": 0,
+      "last_accepted_seq": 5
+     }
+    },
+    {
+     "meta": {
+      "seq": 3,
+      "capture": 300,
+      "response": 300,
+      "boot": "boot-a"
+     },
+     "rtt_ms": 0,
+     "received_mono_ms": 10,
+     "expect": {
+      "verdict": "replay_or_reorder",
+      "boot_changed": false,
+      "conservative_age_ms": 0,
+      "captured_at_mono_ms": null,
+      "last_accepted_seq": 5
+     }
+    },
+    {
+     "meta": {
+      "seq": 4,
+      "capture": 400,
+      "response": 400,
+      "boot": "boot-a"
+     },
+     "rtt_ms": 0,
+     "received_mono_ms": 20,
+     "expect": {
+      "verdict": "replay_or_reorder",
+      "boot_changed": false,
+      "conservative_age_ms": 0,
+      "captured_at_mono_ms": null,
+      "last_accepted_seq": 5
+     }
+    },
+    {
+     "meta": {
+      "seq": 6,
+      "capture": 600,
+      "response": 600,
+      "boot": "boot-a"
+     },
+     "rtt_ms": 0,
+     "received_mono_ms": 30,
+     "expect": {
+      "verdict": "accepted",
+      "boot_changed": false,
+      "conservative_age_ms": 0,
+      "captured_at_mono_ms": 30,
+      "last_accepted_seq": 6
+     }
+    }
+   ]
+  },
+  {
+   "name": "S08 재부팅(bootId 변경): 이력 폐기, 새 boot 첫 프레임 accepted",
+   "steps": [
+    {
+     "meta": {
+      "seq": 900,
+      "capture": 90000000,
+      "response": 90000000,
+      "boot": "a"
+     },
+     "rtt_ms": 0,
+     "received_mono_ms": 0,
+     "expect": {
+      "verdict": "accepted",
+      "boot_changed": false,
+      "conservative_age_ms": 0,
+      "captured_at_mono_ms": 0,
+      "last_accepted_seq": 900
+     }
+    },
+    {
+     "meta": {
+      "seq": 1,
+      "capture": 1000,
+      "response": 1000,
+      "boot": "b"
+     },
+     "rtt_ms": 0,
+     "received_mono_ms": 100,
+     "expect": {
+      "verdict": "accepted",
+      "boot_changed": true,
+      "conservative_age_ms": 0,
+      "captured_at_mono_ms": 100,
+      "last_accepted_seq": 1
+     }
+    }
+   ]
+  },
+  {
+   "name": "S09 uptime 역행만(bootId 같음) → 거부, boot_changed false",
+   "steps": [
+    {
+     "meta": {
+      "seq": 900,
+      "capture": 90000000,
+      "response": 90000000,
+      "boot": "boot-a"
+     },
+     "rtt_ms": 0,
+     "received_mono_ms": 0,
+     "expect": {
+      "verdict": "accepted",
+      "boot_changed": false,
+      "conservative_age_ms": 0,
+      "captured_at_mono_ms": 0,
+      "last_accepted_seq": 900
+     }
+    },
+    {
+     "meta": {
+      "seq": 901,
+      "capture": 1000,
+      "response": 1000,
+      "boot": "boot-a"
+     },
+     "rtt_ms": 0,
+     "received_mono_ms": 100,
+     "expect": {
+      "verdict": "replay_or_reorder",
+      "boot_changed": false,
+      "conservative_age_ms": 0,
+      "captured_at_mono_ms": null,
+      "last_accepted_seq": 900
+     }
+    }
+   ]
+  },
+  {
+   "name": "S10 음수 rtt 는 0 으로(나이를 줄이지 않음)",
+   "steps": [
+    {
+     "meta": {
+      "seq": 1,
+      "capture": 1000000,
+      "response": 1012000,
+      "boot": "boot-a"
+     },
+     "rtt_ms": -50,
+     "received_mono_ms": 1000,
+     "expect": {
+      "verdict": "accepted",
+      "boot_changed": false,
+      "conservative_age_ms": 12,
+      "captured_at_mono_ms": 988,
+      "last_accepted_seq": 1
+     }
+    }
+   ]
+  },
+  {
+   "name": "S11 reset() 은 bootId 이력도 지운다(다른 boot 라도 boot_changed false)",
+   "steps": [
+    {
+     "meta": {
+      "seq": 5,
+      "capture": 500,
+      "response": 500,
+      "boot": "a"
+     },
+     "rtt_ms": 0,
+     "received_mono_ms": 0,
+     "expect": {
+      "verdict": "accepted",
+      "boot_changed": false,
+      "conservative_age_ms": 0,
+      "captured_at_mono_ms": 0,
+      "last_accepted_seq": 5
+     }
+    },
+    {
+     "reset": true
+    },
+    {
+     "meta": {
+      "seq": 2,
+      "capture": 200,
+      "response": 200,
+      "boot": "b"
+     },
+     "rtt_ms": 0,
+     "received_mono_ms": 10,
+     "expect": {
+      "verdict": "accepted",
+      "boot_changed": false,
+      "conservative_age_ms": 0,
+      "captured_at_mono_ms": 10,
+      "last_accepted_seq": 2
+     }
+    }
+   ]
+  },
+  {
+   "name": "S12 last_accepted 는 accepted 만 갱신",
+   "steps": [
+    {
+     "meta": {
+      "seq": 1,
+      "capture": 100,
+      "response": 100,
+      "boot": "boot-a"
+     },
+     "rtt_ms": 0,
+     "received_mono_ms": 0,
+     "expect": {
+      "verdict": "accepted",
+      "boot_changed": false,
+      "conservative_age_ms": 0,
+      "captured_at_mono_ms": 0,
+      "last_accepted_seq": 1
+     }
+    },
+    {
+     "meta": {
+      "seq": 1,
+      "capture": 100,
+      "response": 100,
+      "boot": "boot-a"
+     },
+     "rtt_ms": 0,
+     "received_mono_ms": 5,
+     "expect": {
+      "verdict": "same_frame",
+      "boot_changed": false,
+      "conservative_age_ms": 0,
+      "captured_at_mono_ms": null,
+      "last_accepted_seq": 1
+     }
+    },
+    {
+     "meta": {
+      "seq": 0,
+      "capture": 50,
+      "response": 50,
+      "boot": "boot-a"
+     },
+     "rtt_ms": 0,
+     "received_mono_ms": 6,
+     "expect": {
+      "verdict": "replay_or_reorder",
+      "boot_changed": false,
+      "conservative_age_ms": 0,
+      "captured_at_mono_ms": null,
+      "last_accepted_seq": 1
+     }
+    }
+   ]
+  },
+  {
+   "name": "S13 거부된 프레임도 보수적 나이는 계산(진단용)",
+   "steps": [
+    {
+     "meta": {
+      "seq": 5,
+      "capture": 500,
+      "response": 500,
+      "boot": "boot-a"
+     },
+     "rtt_ms": 0,
+     "received_mono_ms": 0,
+     "expect": {
+      "verdict": "accepted",
+      "boot_changed": false,
+      "conservative_age_ms": 0,
+      "captured_at_mono_ms": 0,
+      "last_accepted_seq": 5
+     }
+    },
+    {
+     "meta": {
+      "seq": 4,
+      "capture": 600,
+      "response": 3600,
+      "boot": "boot-a"
+     },
+     "rtt_ms": 40,
+     "received_mono_ms": 100,
+     "expect": {
+      "verdict": "replay_or_reorder",
+      "boot_changed": false,
+      "conservative_age_ms": 43,
+      "captured_at_mono_ms": null,
+      "last_accepted_seq": 5
+     }
+    }
+   ]
+  },
+  {
+   "name": "S14 재부팅 직후 같은 프레임 반복 → same_frame(boot_changed 는 그 관측에서만 true)",
+   "steps": [
+    {
+     "meta": {
+      "seq": 10,
+      "capture": 5000,
+      "response": 5000,
+      "boot": "a"
+     },
+     "rtt_ms": 0,
+     "received_mono_ms": 0,
+     "expect": {
+      "verdict": "accepted",
+      "boot_changed": false,
+      "conservative_age_ms": 0,
+      "captured_at_mono_ms": 0,
+      "last_accepted_seq": 10
+     }
+    },
+    {
+     "meta": {
+      "seq": 1,
+      "capture": 1000,
+      "response": 1000,
+      "boot": "b"
+     },
+     "rtt_ms": 0,
+     "received_mono_ms": 100,
+     "expect": {
+      "verdict": "accepted",
+      "boot_changed": true,
+      "conservative_age_ms": 0,
+      "captured_at_mono_ms": 100,
+      "last_accepted_seq": 1
+     }
+    },
+    {
+     "meta": {
+      "seq": 1,
+      "capture": 1000,
+      "response": 1000,
+      "boot": "b"
+     },
+     "rtt_ms": 0,
+     "received_mono_ms": 200,
+     "expect": {
+      "verdict": "same_frame",
+      "boot_changed": false,
+      "conservative_age_ms": 0,
+      "captured_at_mono_ms": null,
+      "last_accepted_seq": 1
+     }
+    }
+   ]
+  },
+  {
+   "name": "S15 bootId 가 되돌아와도(a→b→a) 이력을 다시 폐기한다(Dart 와 동일)",
+   "steps": [
+    {
+     "meta": {
+      "seq": 10,
+      "capture": 5000,
+      "response": 5000,
+      "boot": "a"
+     },
+     "rtt_ms": 0,
+     "received_mono_ms": 0,
+     "expect": {
+      "verdict": "accepted",
+      "boot_changed": false,
+      "conservative_age_ms": 0,
+      "captured_at_mono_ms": 0,
+      "last_accepted_seq": 10
+     }
+    },
+    {
+     "meta": {
+      "seq": 1,
+      "capture": 1000,
+      "response": 1000,
+      "boot": "b"
+     },
+     "rtt_ms": 0,
+     "received_mono_ms": 100,
+     "expect": {
+      "verdict": "accepted",
+      "boot_changed": true,
+      "conservative_age_ms": 0,
+      "captured_at_mono_ms": 100,
+      "last_accepted_seq": 1
+     }
+    },
+    {
+     "meta": {
+      "seq": 2,
+      "capture": 2000,
+      "response": 2000,
+      "boot": "a"
+     },
+     "rtt_ms": 0,
+     "received_mono_ms": 300,
+     "expect": {
+      "verdict": "accepted",
+      "boot_changed": true,
+      "conservative_age_ms": 0,
+      "captured_at_mono_ms": 300,
+      "last_accepted_seq": 2
+     }
+    }
+   ]
+  },
+  {
+   "name": "S16 정지 뒤 재개: 같은 프레임 여러 번 뒤 새 프레임 → accepted",
+   "steps": [
+    {
+     "meta": {
+      "seq": 1,
+      "capture": 100,
+      "response": 100,
+      "boot": "boot-a"
+     },
+     "rtt_ms": 0,
+     "received_mono_ms": 0,
+     "expect": {
+      "verdict": "accepted",
+      "boot_changed": false,
+      "conservative_age_ms": 0,
+      "captured_at_mono_ms": 0,
+      "last_accepted_seq": 1
+     }
+    },
+    {
+     "meta": {
+      "seq": 1,
+      "capture": 100,
+      "response": 100,
+      "boot": "boot-a"
+     },
+     "rtt_ms": 0,
+     "received_mono_ms": 500,
+     "expect": {
+      "verdict": "same_frame",
+      "boot_changed": false,
+      "conservative_age_ms": 0,
+      "captured_at_mono_ms": null,
+      "last_accepted_seq": 1
+     }
+    },
+    {
+     "meta": {
+      "seq": 1,
+      "capture": 100,
+      "response": 100,
+      "boot": "boot-a"
+     },
+     "rtt_ms": 0,
+     "received_mono_ms": 1000,
+     "expect": {
+      "verdict": "same_frame",
+      "boot_changed": false,
+      "conservative_age_ms": 0,
+      "captured_at_mono_ms": null,
+      "last_accepted_seq": 1
+     }
+    },
+    {
+     "meta": {
+      "seq": 2,
+      "capture": 3000000,
+      "response": 3010000,
+      "boot": "boot-a"
+     },
+     "rtt_ms": 20,
+     "received_mono_ms": 4000,
+     "expect": {
+      "verdict": "accepted",
+      "boot_changed": false,
+      "conservative_age_ms": 30,
+      "captured_at_mono_ms": 3970,
+      "last_accepted_seq": 2
+     }
+    }
+   ]
+  },
+  {
+   "name": "S17 reset() 뒤에는 같은 프레임도 첫 프레임처럼 accepted",
+   "steps": [
+    {
+     "meta": {
+      "seq": 1,
+      "capture": 100,
+      "response": 100,
+      "boot": "boot-a"
+     },
+     "rtt_ms": 0,
+     "received_mono_ms": 0,
+     "expect": {
+      "verdict": "accepted",
+      "boot_changed": false,
+      "conservative_age_ms": 0,
+      "captured_at_mono_ms": 0,
+      "last_accepted_seq": 1
+     }
+    },
+    {
+     "reset": true
+    },
+    {
+     "meta": {
+      "seq": 1,
+      "capture": 100,
+      "response": 100,
+      "boot": "boot-a"
+     },
+     "rtt_ms": 0,
+     "received_mono_ms": 50,
+     "expect": {
+      "verdict": "accepted",
+      "boot_changed": false,
+      "conservative_age_ms": 0,
+      "captured_at_mono_ms": 50,
+      "last_accepted_seq": 1
+     }
+    }
+   ]
+  }
+ ]
+}
