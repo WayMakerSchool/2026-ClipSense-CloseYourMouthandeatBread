@@ -9,7 +9,7 @@
 //   4 초록 점멸          → "초록불이 곧 끝납니다"
 //   5 잔여 7초 미만       → "안전하게 건널 시간이 부족합니다"
 //   6 빨간불             → "빨간불입니다"
-// 추가: 카메라 권한 거부 / 탭으로 정지.
+// 추가: 카메라 권한 거부 / 탭으로 정지 / 클립 카메라 전원 꺼짐(연결 불가) / 클립 토큰 불일치.
 import 'package:camera/camera.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:clip_sense/app/guidance_controller.dart';
@@ -146,6 +146,37 @@ void main() {
     );
     expect(said, contains('카메라 권한이 없습니다'));
     expect(said, contains('설정에서 카메라를 허용해'));
+  });
+
+  test('추가: 클립 카메라 전원이 꺼지면(연결 불가) 전원·Wi-Fi 확인 안내로 대기', () async {
+    final said = await scene(
+      api: _api(SignalColor.green, remain: 15),
+      camera: _cam(SignalColor.unknown),
+      status: VisionSourceStatus.unreachable,
+    );
+    expect(said, contains('클립 카메라에 연결할 수 없습니다'));
+    expect(said, contains('기다리세요'));
+    expect(haptic.played.last, Decision.wait);
+  });
+
+  test('추가: 클립 카메라 토큰이 틀리면 설정 확인 안내로 대기("향해 주세요"라고 하지 않음)', () async {
+    final vision = _Vision(
+      _cam(SignalColor.unknown),
+      status: VisionSourceStatus.failed,
+    )..diagnostics = const VisionDiagnostics(lastReason: 'token_rejected');
+    final controller = GuidanceController(
+      feedback: FeedbackController(speech, haptic),
+      itstId: '1537',
+      direction: 'ne',
+      vision: vision,
+      fetch: (itstId, direction, apiKey, {required nowMs}) async =>
+          _api(SignalColor.green, remain: 15),
+    );
+    await controller.tickOnce();
+    controller.dispose();
+    expect(speech.spoken.last, contains('기기 토큰 설정을 확인해 주세요'));
+    expect(speech.spoken.last, isNot(contains('향해 주세요')));
+    expect(haptic.played.last, Decision.wait);
   });
 
   test('추가: 촬영 중 화면을 탭해 정지하면 멈췄다고 말한다', () async {
