@@ -231,6 +231,22 @@ curl http://127.0.0.1:8080/__sim/state
 (ESP32 코어 3.3.1 `WebServer::hasHeader`가 빈 값을 "없음"으로 보는 것을 따랐다 —
 라이브러리 소스 기준, 실기기 미검증).
 
+### Dart 어댑터 끝단 테스트(선택 실행)
+
+시뮬레이터가 떠 있을 때만 `app/test/clip/clip_sim_e2e_test.dart` 가 실제 소켓으로
+`ClipVisionSource` 를 붙여 freeze·reboot·503·stall 주입에 대한 반응(same_frame·새
+bootId·capture_failed·timeout→unreachable·복귀)을 확인한다. 기본 `flutter test` 에서는
+건너뛴다.
+
+```bash
+cd app
+flutter test test/clip/clip_sim_e2e_test.dart \
+  --dart-define=CLIP_SIM_URL=http://127.0.0.1:8765 \
+  --dart-define=CLIP_SIM_TOKEN="$CLIP_DEVICE_TOKEN"
+```
+
+통과해도 "계약을 말하는 서버를 앱이 받아들인다"까지다 — 실기기 검증이 아니다.
+
 ## 실기기 검증 전 주장하지 않는 것
 
 보드가 손에 들어오기 전까지 아래는 **측정되지 않았다.**
