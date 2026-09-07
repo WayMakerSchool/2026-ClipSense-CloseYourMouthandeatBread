@@ -45,9 +45,14 @@ API 키는 소스나 `.env`에 저장하지 않는다. 키가 비어 있거나 A
 ```bash
 flutter run \
   --dart-define=TDATA_KEY='발급받은_API_키' \
-  --dart-define=CLIP_CAM_HOST=192.168.4.1 \
+  --dart-define=CLIP_CAM_HOST=192.168.0.42 \
   --dart-define=CLIP_CAM_TOKEN='펌웨어 secrets.h 의 CLIP_DEVICE_TOKEN'
 ```
+
+주소는 클립이 **같은 Wi-Fi(STA 모드)** 에서 받은 LAN IP(직렬 로그 또는 공유기
+목록)여야 한다. 펌웨어의 SoftAP `192.168.4.1`은 사람이 붙어 상태를 확인하는 복구
+경로일 뿐 운용 모드가 아니며, 그 AP에 폰을 붙이면 인터넷이 없어 T-Data가 닿지 않아
+엄격 AND 규칙상 절대 "건너세요"가 나오지 않는다.
 
 동작(`lib/clip/`): 250ms 간격 폴링(이전 요청이 끝나기 전엔 새 요청 없음, 800ms
 타임아웃은 연결을 실제로 끊음) → 계약 헤더(`X-Frame-Seq`·`X-Capture-Uptime-Us`·
@@ -81,6 +86,8 @@ JPEG 디코드(순수 Dart) → 중앙 25% ROI → 폰 카메라와 같은 판�
 - 검증 범위: MockClient, 루프백 `dart:io` HttpServer, 스크립트 카메라, cv2 인코딩 JPEG
   fixture. 실제 보드·폰·OV2640 JPEG·왕복 시간·초당 프레임·인식 거리는 **미측정**.
   `.local` 이름은 OS 해석에 맡기며 Android에서는 IP를 쓰는 것이 안전하다.
+- Flutter 웹은 대상이 아니다. 브라우저 클라이언트는 펌웨어의 CORS 허용 목록을
+  타고, 타임아웃 때 연결을 강제로 끊는 동작도 없다(dart:io 전용).
 
 ## 구조
 

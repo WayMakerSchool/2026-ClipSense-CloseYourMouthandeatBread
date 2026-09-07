@@ -39,7 +39,9 @@ const int kCameraProcessEveryN = 3;
 const String kCameraResolutionPreset = 'medium';
 
 /// 클립 카메라(XIAO ESP32S3 Sense) 주소. 비어 있으면(기본) 폰 카메라를 쓴다.
-/// `--dart-define=CLIP_CAM_HOST=192.168.4.1` 또는 `http://clipsense-a1b2.local`.
+/// `--dart-define=CLIP_CAM_HOST=192.168.0.42`(STA 모드 LAN IP) 또는
+/// `http://clipsense-a1b2.local`. 펌웨어 SoftAP `192.168.4.1`은 복구 경로라 인터넷이
+/// 없어 API가 닿지 않는다(항상 대기).
 /// 하드코딩 금지. mDNS(.local) 해석은 OS 에 맡긴다(Android 는 해석 못 할 수 있음
 /// → IP 사용).
 const String kClipCamHost = String.fromEnvironment('CLIP_CAM_HOST');

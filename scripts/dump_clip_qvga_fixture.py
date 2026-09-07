@@ -15,7 +15,9 @@ python_reference 로 함께 기록한다(Dart 테스트가 같은 값을 재현�
 
 주의: 제3자 클립이라 저장소에는 이 QVGA 프레임 2장만 둔다(각 10KB 미만).
 cv2 가 인코딩한 JPEG 이지 OV2640 이 만든 JPEG 이 아니다 — 코덱·기하 회귀용이며
-클립 카메라의 실제 인식 거리를 말해 주지 않는다.
+클립 카메라의 실제 인식 거리를 말해 주지 않는다. 품질 단위도 다르다: 펌웨어
+config.h 의 CLIP_JPEG_QUALITY=12 는 esp32-camera 의 0~63 척도(낮을수록 고화질)이고
+여기 --quality 80 은 cv2 의 0~100 척도라 서로 같은 압축률이 아니다.
 """
 from __future__ import annotations
 

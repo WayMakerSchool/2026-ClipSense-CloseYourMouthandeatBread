@@ -138,10 +138,13 @@ X-Camera-Sensor: OV3660
 뺄 수 없다(§10.4). 판정 쪽은 이렇게 보수적으로 추정한다.
 
 ```
-serverFrameAgeMs = (X-Response-Uptime-Us - X-Capture-Uptime-Us) / 1000
-conservativeAgeMs = requestRttMs + serverFrameAgeMs
+serverFrameAgeMs = ceil((X-Response-Uptime-Us - X-Capture-Uptime-Us) / 1000)   # 앱은 올림(보수적)
+conservativeAgeMs = max(requestRttMs, 0) + serverFrameAgeMs
 capturedAtMonoMs = responseReceivedMonoMs - conservativeAgeMs
 ```
+
+앱 구현(`app/lib/clip/clip_snapshot.dart`·`clip_freshness.dart`)은 서버 프레임 나이를
+올림하고 음수 rtt를 0으로 본다 — 프레임을 더 젊게 보는 방향의 반올림은 쓰지 않는다.
 
 헤더가 없거나 유한하지 않거나 `responseUptime < captureUptime`이면 **프레임을
 무효로 처리한다.** `X-Capture-Uptime-Us`는 같은 `bootId` 안에서만 프레임

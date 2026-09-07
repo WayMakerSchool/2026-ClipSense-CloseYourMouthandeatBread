@@ -9,6 +9,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:clip_sense/clip/jpeg_frame.dart';
 import 'package:clip_sense/vision/color_detector.dart';
 import 'package:clip_sense/vision/detector_config.dart';
 import 'package:clip_sense/vision/digit_reader.dart';
@@ -69,6 +70,26 @@ void main() {
       '숫자판독 ${(digitUs / 1000).toStringAsFixed(1)}ms · '
       '합계 ${(totalUs / 1000).toStringAsFixed(1)}ms '
       '(Dart VM JIT 기준, 실기기 AOT는 더 빠름)',
+    );
+
+    // 클립 경로: QVGA JPEG 디코드(순수 Dart) + 25% 크롭. 4Hz 폴링이라 예산은
+    // 넉넉하지만 UI isolate 에서 돌므로 같은 100ms 상한에 넣어 둔다.
+    final jpeg = Uint8List.fromList(
+      _fixture('clip_qvga_f20.jpg').readAsBytesSync(),
+    );
+    final decodeUs = _benchUs(20, () => decodeJpegToRoiBgr(jpeg, 0.25));
+    final clipRoi = decodeJpegToRoiBgr(jpeg, 0.25)!;
+    final clipDetectUs = _benchUs(20, () => ColorDetector(cfg).detect(clipRoi));
+    // ignore: avoid_print
+    print(
+      '[벤치] 클립 QVGA JPEG ${jpeg.length}B — 디코드+크롭 '
+      '${(decodeUs / 1000).toStringAsFixed(1)}ms · detect(80x60) '
+      '${(clipDetectUs / 1000).toStringAsFixed(1)}ms',
+    );
+    expect(
+      (decodeUs + clipDetectUs) / 1000,
+      lessThan(100),
+      reason: '클립 프레임 한 장 처리가 100ms 를 넘으면 250ms 폴링을 못 따라간다.',
     );
 
     // 상한: 카메라가 3프레임당 1회 처리하므로 30fps에서 100ms 예산.

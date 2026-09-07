@@ -273,30 +273,43 @@ void main() {
       );
     });
 
-    test('evaluate는 cameraDenied를 절대 반환하지 않는다', () {
-      const colors = SignalColor.values;
-      final readings = <SignalReading?>[null];
-      for (final color in colors) {
-        for (final remain in [null, 3.0, 30.0]) {
-          for (final fresh in [0, 5000]) {
-            readings.add(api(color, remain: remain, fresh: fresh));
-            readings.add(vis(color, remain: remain, fresh: fresh));
+    // 컨트롤러가 소스 상태를 보고 바꿔 넣는 이유들. judge 는 판독값만 보므로 이
+    // 값을 만들 수 없어야 한다(만들면 "설정을 확인하라"가 엉뚱한 상황에 나온다).
+    const controllerOnlyReasons = {
+      DecisionReason.cameraDenied,
+      DecisionReason.clipUnreachable,
+      DecisionReason.clipTokenRejected,
+      DecisionReason.apiKeyMissing,
+    };
+
+    test(
+      'evaluate는 컨트롤러 전용 이유(cameraDenied·clipUnreachable·clipTokenRejected·apiKeyMissing)를 절대 반환하지 않는다',
+      () {
+        const colors = SignalColor.values;
+        final readings = <SignalReading?>[null];
+        for (final color in colors) {
+          for (final remain in [null, 3.0, 30.0]) {
+            for (final fresh in [0, 5000]) {
+              readings.add(api(color, remain: remain, fresh: fresh));
+              readings.add(vis(color, remain: remain, fresh: fresh));
+            }
           }
         }
-      }
-      for (final a in readings) {
-        for (final v in readings) {
-          for (final single in [false, true]) {
-            final result = evaluate(a, v, allowSingleSource: single);
-            expect(
-              result.reason,
-              isNot(DecisionReason.cameraDenied),
-              reason: 'api=$a vision=$v allowSingleSource=$single',
-            );
+        for (final a in readings) {
+          for (final v in readings) {
+            for (final single in [false, true]) {
+              final result = evaluate(a, v, allowSingleSource: single);
+              expect(
+                controllerOnlyReasons.contains(result.reason),
+                isFalse,
+                reason:
+                    '${result.reason} api=$a vision=$v allowSingleSource=$single',
+              );
+            }
           }
         }
-      }
-    });
+      },
+    );
   });
 
   group('비정상 수치 fail-safe', () {
