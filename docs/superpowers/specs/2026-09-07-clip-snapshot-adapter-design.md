@@ -98,4 +98,4 @@ INTER_AREA로 320x240, cv2 JPEG q80. 프레임 20(점등)·34(점멸 소등).
 2. 카메라 정지 감시(폰·클립 공용 `stalled` 상태와 "카메라 영상이 멈췄습니다" 안내).
 3. Python 미러(`clip_snapshot.py`, 신선도 골든 JSON을 Dart와 공유, 부스 데모 `--clip-host`).
 4. 덱·보고서 정합(클립 어댑터 구현 반영, 테스트 수, "차량 소리 감지" 표기 제거).
-5. 펌웨어: bootId 엔트로피(RF 초기화 전 `esp_random()`) 보강 검토.
+5. ~~펌웨어: bootId 엔트로피(RF 초기화 전 `esp_random()`) 보강 검토.~~ 완료(6427871): eFuse MAC·RTC 부팅 카운터·타이머·`esp_random()`을 FNV-1a로 섞음, 컴파일 검증.
