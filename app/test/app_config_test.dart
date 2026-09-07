@@ -19,4 +19,8 @@ void main() {
   test('진단 플래그 기본값은 꺼짐', () {
     expect(kClipDebug, isFalse);
   });
+
+  test('kStaleMs: 두 소스 모두 2초 이내 최신일 때만 판정에 쓴다(안전 정책 상수)', () {
+    expect(kStaleMs, 2000);
+  });
 }

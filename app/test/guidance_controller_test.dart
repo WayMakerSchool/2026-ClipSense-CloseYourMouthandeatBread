@@ -94,6 +94,8 @@ void main() {
       itstId: '1850',
       direction: 'st',
       allowSingleSource: allowSingleSource,
+      // 고정 시계: fetch 소요 0ms → 재-aging 없이 주입한 값 그대로 판정된다.
+      clock: () => 0,
       fetch: (itstId, direction, apiKey, {required nowMs}) async => apiReading,
     );
   }
@@ -768,6 +770,171 @@ void main() {
     expect(c.decision, Decision.unknown);
     expect(c.reason, DecisionReason.apiKeyMissing);
     expect(speech.spoken.single, contains('API 키'));
+    c.dispose();
+  });
+
+  // API 응답 지연 재-aging: 컨트롤러는 요청 전 시각을 nowMs로 넘기고, 파서는 그
+  // 시각 기준으로 신선도를 계산한다. fetch가 느리면(타임아웃 5초) 판정 시점에는
+  // 이미 그만큼 더 오래된 값인데 "2초 이내"로 통과하고 잔여시간도 과대평가된다.
+  // 판정 직전에 fetch 소요 시간만큼 다시 늙힌다(신선도 +, 잔여 −).
+  group('API 응답 지연 재-aging', () {
+    GuidanceController makeClocked(
+      int Function() clock,
+      Completer<SignalReading> release, {
+      FakeVisionSource? vision,
+    }) {
+      return GuidanceController(
+        feedback: feedback,
+        itstId: '1850',
+        direction: 'st',
+        vision: vision,
+        allowSingleSource: false,
+        clock: clock,
+        fetch: (itstId, direction, apiKey, {required nowMs}) => release.future,
+      );
+    }
+
+    test('느린 fetch(1.5초)면 잔여시간을 지연만큼 줄인다: 8초 → 6.5초 → wait', () async {
+      var now = 1000000;
+      final release = Completer<SignalReading>();
+      final vision = FakeVisionSource(
+        const SignalReading(SignalColor.green, null, SignalSource.vision),
+      );
+      final c = makeClocked(() => now, release, vision: vision);
+      final tick = c.tickOnce();
+      now += 1500;
+      release.complete(
+        const SignalReading(SignalColor.green, 8.0, SignalSource.api),
+      );
+      await tick;
+      expect(c.decision, Decision.wait);
+      expect(c.reason, DecisionReason.remainingInsufficient);
+      expect(c.remainSec, isNull);
+      // 진단용 마지막 판독도 늙힌 값이다(화면이 8초라고 보여주면 안 된다).
+      expect(c.lastApiReading?.remainSec, closeTo(6.5, 1e-9));
+      expect(c.lastApiReading?.freshMs, 1500);
+      c.dispose();
+    });
+
+    test('느린 fetch(1.5초)면 신선도에 지연을 더한다: 1000ms → 2500ms → API 불가', () async {
+      var now = 5000;
+      final release = Completer<SignalReading>();
+      final vision = FakeVisionSource(
+        const SignalReading(SignalColor.green, null, SignalSource.vision),
+      );
+      final c = makeClocked(() => now, release, vision: vision);
+      final tick = c.tickOnce();
+      now += 1500;
+      release.complete(
+        const SignalReading(
+          SignalColor.green,
+          15.0,
+          SignalSource.api,
+          freshMs: 1000,
+        ),
+      );
+      await tick;
+      expect(c.decision, Decision.wait);
+      expect(c.reason, DecisionReason.apiUnavailable);
+      c.dispose();
+    });
+
+    test('빠른 fetch는 그대로 walk(재-aging은 지연이 있을 때만)', () async {
+      const now = 42;
+      final release = Completer<SignalReading>();
+      final vision = FakeVisionSource(
+        const SignalReading(SignalColor.green, null, SignalSource.vision),
+      );
+      final c = makeClocked(() => now, release, vision: vision);
+      final tick = c.tickOnce();
+      release.complete(
+        const SignalReading(SignalColor.green, 8.0, SignalSource.api),
+      );
+      await tick;
+      expect(c.decision, Decision.walk);
+      expect(c.remainSec, 8.0);
+      c.dispose();
+    });
+
+    test('지연이 잔여시간보다 길어도 0 아래로 내려가지 않는다', () async {
+      var now = 0;
+      final release = Completer<SignalReading>();
+      final vision = FakeVisionSource(
+        const SignalReading(SignalColor.green, null, SignalSource.vision),
+      );
+      final c = makeClocked(() => now, release, vision: vision);
+      final tick = c.tickOnce();
+      now += 4000;
+      release.complete(
+        const SignalReading(SignalColor.green, 2.0, SignalSource.api),
+      );
+      await tick;
+      // 4초 지연이면 신선도 4000ms > 2000ms라 API 불가가 먼저다(잔여 0은 음수가 아님).
+      expect(c.decision, Decision.wait);
+      expect(c.reason, DecisionReason.apiUnavailable);
+      expect(c.lastApiReading?.remainSec, 0.0);
+      c.dispose();
+    });
+
+    test('시계가 거꾸로 가도(음수 지연) 판독을 젊게 만들지 않는다', () async {
+      var now = 10000;
+      final release = Completer<SignalReading>();
+      final vision = FakeVisionSource(
+        const SignalReading(SignalColor.green, null, SignalSource.vision),
+      );
+      final c = makeClocked(() => now, release, vision: vision);
+      final tick = c.tickOnce();
+      now -= 500;
+      release.complete(
+        const SignalReading(
+          SignalColor.green,
+          8.0,
+          SignalSource.api,
+          freshMs: 1900,
+        ),
+      );
+      await tick;
+      expect(c.lastApiReading?.freshMs, 1900);
+      expect(c.lastApiReading?.remainSec, 8.0);
+      expect(c.decision, Decision.walk);
+      c.dispose();
+    });
+  });
+
+  test('stop→start 뒤의 새 tick은 옛 fetch가 남아 있어도 즉시 새 fetch를 시작한다', () async {
+    var calls = 0;
+    final first = Completer<SignalReading>();
+    final second = Completer<SignalReading>();
+    final c = GuidanceController(
+      feedback: feedback,
+      itstId: '1850',
+      direction: 'st',
+      allowSingleSource: true,
+      fetch: (itstId, direction, apiKey, {required nowMs}) {
+        calls++;
+        return calls == 1 ? first.future : second.future;
+      },
+    );
+
+    c.start();
+    expect(calls, 1);
+    c.stop(announce: false);
+    c.start();
+    // 옛 tick(첫 fetch)이 아직 안 끝났어도 새 세션의 첫 판정은 새 fetch로 한다.
+    expect(calls, 2);
+
+    // 옛 응답(빨강)이 먼저 와도 무시되고, 새 응답(초록)이 판정이 된다.
+    first.complete(
+      const SignalReading(SignalColor.red, null, SignalSource.api),
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(c.decision, Decision.unknown);
+    second.complete(
+      const SignalReading(SignalColor.green, 15.0, SignalSource.api),
+    );
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+    expect(c.decision, Decision.walk);
     c.dispose();
   });
 }

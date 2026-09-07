@@ -37,6 +37,10 @@ class GuidanceController extends ChangeNotifier {
   final String _apiKey;
   final bool _apiConfigured;
 
+  /// 밀리초 시계. API 요청 전후를 같은 시계로 재어 fetch 소요 시간을 구한다.
+  /// 테스트가 주입해 지연 재-aging을 결정적으로 검증한다.
+  final int Function() _clock;
+
   Timer? _timer;
   Future<void>? _activeTick;
   int _generation = 0;
@@ -57,7 +61,9 @@ class GuidanceController extends ChangeNotifier {
     Duration interval = kLoopInterval,
     bool allowSingleSource = kAllowSingleSource,
     String apiKey = kApiKey,
+    int Function()? clock,
   }) : _feedback = feedback,
+       _clock = clock ?? _wallClockMs,
        _itstId = itstId,
        _direction = direction,
        _vision = vision,
@@ -66,6 +72,8 @@ class GuidanceController extends ChangeNotifier {
        _fetch = fetch ?? _defaultFetch,
        _interval = interval,
        _allowSingleSource = allowSingleSource;
+
+  static int _wallClockMs() => DateTime.now().millisecondsSinceEpoch;
 
   static Future<SignalReading> _defaultFetch(
     String itstId,
@@ -96,6 +104,9 @@ class GuidanceController extends ChangeNotifier {
     if (_running) return;
     _running = true;
     _generation++;
+    // 이전 세션의 느린 fetch가 아직 진행 중이어도 새 세션의 첫 판정을 그 뒤로
+    // 미루지 않는다. 옛 tick은 generation 불일치로 결과가 버려진다.
+    _activeTick = null;
     unawaited(_startVision());
     _timer = Timer.periodic(_interval, (_) => unawaited(tickOnce()));
     notifyListeners();
@@ -112,6 +123,7 @@ class GuidanceController extends ChangeNotifier {
     _timer = null;
     _running = false;
     _generation++; // 이미 진행 중인 API 응답이 정지 상태를 되살리지 못하게 무효화
+    _activeTick = null; // 다음 start()의 첫 tick이 옛 fetch를 기다리지 않게
     unawaited(_stopVision());
     _feedback.reset();
     // 정지 시 마지막 판정을 지운다 — 그대로 두면 정지 후에도 화면/스크린리더가
@@ -184,17 +196,23 @@ class GuidanceController extends ChangeNotifier {
     SignalReading? apiUsed;
     SignalReading? visionUsed;
     try {
-      final nowMs = DateTime.now().millisecondsSinceEpoch;
-      final apiReading = _apiConfigured
+      final nowMs = _clock();
+      final fetched = _apiConfigured
           ? await _fetch(_itstId, _direction, _apiKey, nowMs: nowMs)
           : const SignalReading(SignalColor.unknown, null, SignalSource.api);
       if (!_isTickCurrent(generation)) return;
+      // 파서는 요청 전 시각(nowMs) 기준으로 신선도를 계산한다. 응답이 늦게
+      // 왔으면(타임아웃 5초까지) 판정 시점에는 그만큼 더 오래된 값이므로 fetch
+      // 소요 시간만큼 다시 늙힌다 — 신선도 2초 규칙과 잔여시간이 "판정 시점"
+      // 기준으로 성립하게 한다. 시계가 거꾸로 가면(음수) 손대지 않는다.
+      final apiReading = fetched.aged(_clock() - nowMs);
 
       final visionReading = _vision?.latestReading ?? visionStub();
       result = evaluate(
         apiReading,
         visionReading,
         needSec: kNeedSec,
+        staleMs: kStaleMs,
         allowSingleSource: _allowSingleSource,
       );
       apiUsed = apiReading;

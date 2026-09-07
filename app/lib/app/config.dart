@@ -7,6 +7,11 @@ const double kNeedSec = 7.0;
 /// 신호 확인 주기.
 const Duration kLoopInterval = Duration(seconds: 1);
 
+/// 판정에 쓸 수 있는 판독의 최대 나이(ms). API·카메라 모두 이보다 오래되면
+/// unknown으로 취급한다(안전 정책 "둘 다 2초 이내 최신"). judge/signal_api의
+/// 기본값과 같지만 컨트롤러는 이 상수를 명시적으로 넘긴다.
+const int kStaleMs = 2000;
+
 /// T-Data API 키. 하드코딩 금지 — --dart-define=TDATA_KEY=... 로 주입.
 const String kApiKey = String.fromEnvironment('TDATA_KEY');
 
