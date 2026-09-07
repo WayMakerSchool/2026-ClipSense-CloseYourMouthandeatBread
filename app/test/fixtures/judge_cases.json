@@ -1,0 +1,978 @@
+{
+ "schema": "clipsense-judge-golden-v1",
+ "source": "app/lib/signals/judge.dart evaluate() — Dart 가 기준, Python judge.py 가 미러",
+ "non_finite_encoding": [
+  "NaN",
+  "Infinity",
+  "-Infinity"
+ ],
+ "defaults": {
+  "need_sec": 7.0,
+  "stale_ms": 2000,
+  "allow_single_source": false
+ },
+ "decisions": [
+  "walk",
+  "wait",
+  "unknown"
+ ],
+ "reasons": [
+  "ready",
+  "sources_unavailable",
+  "camera_unavailable",
+  "camera_denied",
+  "clip_unreachable",
+  "clip_token_rejected",
+  "camera_starting",
+  "camera_stalled",
+  "api_unavailable",
+  "api_key_missing",
+  "red_signal",
+  "clearance",
+  "conflict",
+  "remaining_unavailable",
+  "remaining_insufficient"
+ ],
+ "reason_text": {
+  "ready": "API와 카메라가 모두 초록입니다",
+  "sources_unavailable": "API와 카메라 신호를 확인할 수 없습니다",
+  "camera_unavailable": "카메라가 신호등을 찾지 못했습니다. 신호등을 향해 주세요",
+  "camera_denied": "카메라 권한이 없습니다. 설정에서 카메라를 허용해 주세요",
+  "clip_unreachable": "클립 카메라에 연결할 수 없습니다. 전원과 Wi-Fi 연결을 확인해 주세요",
+  "clip_token_rejected": "클립 카메라가 접속을 거부했습니다. 기기 토큰 설정을 확인해 주세요",
+  "camera_starting": "카메라를 준비하는 중입니다",
+  "camera_stalled": "카메라 영상이 멈췄습니다. 화면을 두 번 눌러 다시 시작해 주세요",
+  "api_unavailable": "신호 정보를 아직 받지 못했습니다",
+  "api_key_missing": "T-Data API 키가 설정되지 않았습니다",
+  "red_signal": "빨간불입니다",
+  "clearance": "초록불이 곧 끝납니다",
+  "conflict": "API와 카메라 신호가 일치하지 않습니다",
+  "remaining_unavailable": "남은 시간을 확인할 수 없습니다",
+  "remaining_insufficient": "안전하게 건널 시간이 부족합니다"
+ },
+ "never_emitted_by_evaluate": [
+  "camera_denied",
+  "clip_unreachable",
+  "clip_token_rejected",
+  "camera_starting",
+  "camera_stalled",
+  "api_key_missing"
+ ],
+ "cases": [
+  {
+   "name": "J01 둘 다 초록·API 잔여 30·카메라 숫자 없음 → walk ready",
+   "api": {
+    "color": "green",
+    "remain": 30,
+    "fresh": 100
+   },
+   "vision": {
+    "color": "green",
+    "remain": null,
+    "fresh": 100
+   },
+   "expect": {
+    "decision": "walk",
+    "reason": "ready"
+   }
+  },
+  {
+   "name": "J02 AND: API초록·비전빨강 → conflict",
+   "api": {
+    "color": "green",
+    "remain": 30,
+    "fresh": 100
+   },
+   "vision": {
+    "color": "red",
+    "remain": null,
+    "fresh": 100
+   },
+   "expect": {
+    "decision": "wait",
+    "reason": "conflict"
+   }
+  },
+  {
+   "name": "J03 AND: API빨강·비전초록 → conflict",
+   "api": {
+    "color": "red",
+    "remain": null,
+    "fresh": 100
+   },
+   "vision": {
+    "color": "green",
+    "remain": null,
+    "fresh": 100
+   },
+   "expect": {
+    "decision": "wait",
+    "reason": "conflict"
+   }
+  },
+  {
+   "name": "J04 AND: API초록·비전점멸 → conflict",
+   "api": {
+    "color": "green",
+    "remain": 30,
+    "fresh": 100
+   },
+   "vision": {
+    "color": "clearance",
+    "remain": null,
+    "fresh": 100
+   },
+   "expect": {
+    "decision": "wait",
+    "reason": "conflict"
+   }
+  },
+  {
+   "name": "J05 AND: API점멸·비전초록 → conflict",
+   "api": {
+    "color": "clearance",
+    "remain": 3,
+    "fresh": 100
+   },
+   "vision": {
+    "color": "green",
+    "remain": null,
+    "fresh": 100
+   },
+   "expect": {
+    "decision": "wait",
+    "reason": "conflict"
+   }
+  },
+  {
+   "name": "J06 AND: 둘 다 빨강 → red_signal",
+   "api": {
+    "color": "red",
+    "remain": null,
+    "fresh": 100
+   },
+   "vision": {
+    "color": "red",
+    "remain": null,
+    "fresh": 100
+   },
+   "expect": {
+    "decision": "wait",
+    "reason": "red_signal"
+   }
+  },
+  {
+   "name": "J07 AND: 둘 다 점멸 → clearance",
+   "api": {
+    "color": "clearance",
+    "remain": 3,
+    "fresh": 100
+   },
+   "vision": {
+    "color": "clearance",
+    "remain": null,
+    "fresh": 100
+   },
+   "expect": {
+    "decision": "wait",
+    "reason": "clearance"
+   }
+  },
+  {
+   "name": "J08 순서: API점멸·비전빨강 → conflict (불일치가 점멸보다 먼저)",
+   "api": {
+    "color": "clearance",
+    "remain": 3,
+    "fresh": 100
+   },
+   "vision": {
+    "color": "red",
+    "remain": null,
+    "fresh": 100
+   },
+   "expect": {
+    "decision": "wait",
+    "reason": "conflict"
+   }
+  },
+  {
+   "name": "J09 순서: API빨강·비전점멸 → conflict",
+   "api": {
+    "color": "red",
+    "remain": null,
+    "fresh": 100
+   },
+   "vision": {
+    "color": "clearance",
+    "remain": null,
+    "fresh": 100
+   },
+   "expect": {
+    "decision": "wait",
+    "reason": "conflict"
+   }
+  },
+  {
+   "name": "J10 잔여 경계: API 7.0 → walk",
+   "api": {
+    "color": "green",
+    "remain": 7.0,
+    "fresh": 100
+   },
+   "vision": {
+    "color": "green",
+    "remain": null,
+    "fresh": 100
+   },
+   "expect": {
+    "decision": "walk",
+    "reason": "ready"
+   }
+  },
+  {
+   "name": "J11 잔여 경계: API 6.9 → remaining_insufficient",
+   "api": {
+    "color": "green",
+    "remain": 6.9,
+    "fresh": 100
+   },
+   "vision": {
+    "color": "green",
+    "remain": null,
+    "fresh": 100
+   },
+   "expect": {
+    "decision": "wait",
+    "reason": "remaining_insufficient"
+   }
+  },
+  {
+   "name": "J12 잔여 0 → remaining_insufficient",
+   "api": {
+    "color": "green",
+    "remain": 0,
+    "fresh": 100
+   },
+   "vision": {
+    "color": "green",
+    "remain": null,
+    "fresh": 100
+   },
+   "expect": {
+    "decision": "wait",
+    "reason": "remaining_insufficient"
+   }
+  },
+  {
+   "name": "J13 API 잔여 null·카메라 숫자 20 → remaining_unavailable (API 가 기준)",
+   "api": {
+    "color": "green",
+    "remain": null,
+    "fresh": 100
+   },
+   "vision": {
+    "color": "green",
+    "remain": 20,
+    "fresh": 100
+   },
+   "expect": {
+    "decision": "wait",
+    "reason": "remaining_unavailable"
+   }
+  },
+  {
+   "name": "J14 API 잔여 20·카메라 숫자 3 → remaining_insufficient (카메라 거부권)",
+   "api": {
+    "color": "green",
+    "remain": 20,
+    "fresh": 100
+   },
+   "vision": {
+    "color": "green",
+    "remain": 3,
+    "fresh": 100
+   },
+   "expect": {
+    "decision": "wait",
+    "reason": "remaining_insufficient"
+   }
+  },
+  {
+   "name": "J15 API 잔여 20·카메라 숫자 20 → walk",
+   "api": {
+    "color": "green",
+    "remain": 20,
+    "fresh": 100
+   },
+   "vision": {
+    "color": "green",
+    "remain": 20,
+    "fresh": 100
+   },
+   "expect": {
+    "decision": "walk",
+    "reason": "ready"
+   }
+  },
+  {
+   "name": "J16 API 잔여 7.0·카메라 숫자 6.9 → remaining_insufficient",
+   "api": {
+    "color": "green",
+    "remain": 7.0,
+    "fresh": 100
+   },
+   "vision": {
+    "color": "green",
+    "remain": 6.9,
+    "fresh": 100
+   },
+   "expect": {
+    "decision": "wait",
+    "reason": "remaining_insufficient"
+   }
+  },
+  {
+   "name": "J17 API 잔여 NaN → remaining_unavailable",
+   "api": {
+    "color": "green",
+    "remain": "NaN",
+    "fresh": 100
+   },
+   "vision": {
+    "color": "green",
+    "remain": null,
+    "fresh": 100
+   },
+   "expect": {
+    "decision": "wait",
+    "reason": "remaining_unavailable"
+   }
+  },
+  {
+   "name": "J18 API 잔여 Infinity → remaining_unavailable",
+   "api": {
+    "color": "green",
+    "remain": "Infinity",
+    "fresh": 100
+   },
+   "vision": {
+    "color": "green",
+    "remain": null,
+    "fresh": 100
+   },
+   "expect": {
+    "decision": "wait",
+    "reason": "remaining_unavailable"
+   }
+  },
+  {
+   "name": "J19 API 잔여 -1 → remaining_unavailable",
+   "api": {
+    "color": "green",
+    "remain": -1,
+    "fresh": 100
+   },
+   "vision": {
+    "color": "green",
+    "remain": null,
+    "fresh": 100
+   },
+   "expect": {
+    "decision": "wait",
+    "reason": "remaining_unavailable"
+   }
+  },
+  {
+   "name": "J20 API 잔여 -Infinity → remaining_unavailable",
+   "api": {
+    "color": "green",
+    "remain": "-Infinity",
+    "fresh": 100
+   },
+   "vision": {
+    "color": "green",
+    "remain": null,
+    "fresh": 100
+   },
+   "expect": {
+    "decision": "wait",
+    "reason": "remaining_unavailable"
+   }
+  },
+  {
+   "name": "J21 API 30·카메라 NaN → remaining_unavailable (정상값과 섞여도)",
+   "api": {
+    "color": "green",
+    "remain": 30,
+    "fresh": 100
+   },
+   "vision": {
+    "color": "green",
+    "remain": "NaN",
+    "fresh": 100
+   },
+   "expect": {
+    "decision": "wait",
+    "reason": "remaining_unavailable"
+   }
+  },
+  {
+   "name": "J22 API 30·카메라 Infinity → remaining_unavailable",
+   "api": {
+    "color": "green",
+    "remain": 30,
+    "fresh": 100
+   },
+   "vision": {
+    "color": "green",
+    "remain": "Infinity",
+    "fresh": 100
+   },
+   "expect": {
+    "decision": "wait",
+    "reason": "remaining_unavailable"
+   }
+  },
+  {
+   "name": "J23 API 30·카메라 -1 → remaining_unavailable",
+   "api": {
+    "color": "green",
+    "remain": 30,
+    "fresh": 100
+   },
+   "vision": {
+    "color": "green",
+    "remain": -1,
+    "fresh": 100
+   },
+   "expect": {
+    "decision": "wait",
+    "reason": "remaining_unavailable"
+   }
+  },
+  {
+   "name": "J24 need_sec -1 → remaining_unavailable (walk 아님)",
+   "api": {
+    "color": "green",
+    "remain": 30,
+    "fresh": 100
+   },
+   "vision": {
+    "color": "green",
+    "remain": null,
+    "fresh": 100
+   },
+   "need_sec": -1,
+   "expect": {
+    "decision": "wait",
+    "reason": "remaining_unavailable"
+   }
+  },
+  {
+   "name": "J25 need_sec NaN → remaining_unavailable",
+   "api": {
+    "color": "green",
+    "remain": 30,
+    "fresh": 100
+   },
+   "vision": {
+    "color": "green",
+    "remain": null,
+    "fresh": 100
+   },
+   "need_sec": "NaN",
+   "expect": {
+    "decision": "wait",
+    "reason": "remaining_unavailable"
+   }
+  },
+  {
+   "name": "J26 need_sec Infinity → remaining_unavailable",
+   "api": {
+    "color": "green",
+    "remain": 30,
+    "fresh": 100
+   },
+   "vision": {
+    "color": "green",
+    "remain": null,
+    "fresh": 100
+   },
+   "need_sec": "Infinity",
+   "expect": {
+    "decision": "wait",
+    "reason": "remaining_unavailable"
+   }
+  },
+  {
+   "name": "J27 need_sec 10·잔여 10 → walk",
+   "api": {
+    "color": "green",
+    "remain": 10,
+    "fresh": 100
+   },
+   "vision": {
+    "color": "green",
+    "remain": null,
+    "fresh": 100
+   },
+   "need_sec": 10,
+   "expect": {
+    "decision": "walk",
+    "reason": "ready"
+   }
+  },
+  {
+   "name": "J28 need_sec 10·잔여 9.9 → remaining_insufficient",
+   "api": {
+    "color": "green",
+    "remain": 9.9,
+    "fresh": 100
+   },
+   "vision": {
+    "color": "green",
+    "remain": null,
+    "fresh": 100
+   },
+   "need_sec": 10,
+   "expect": {
+    "decision": "wait",
+    "reason": "remaining_insufficient"
+   }
+  },
+  {
+   "name": "J29 신선도 경계: 비전 fresh 2000 → walk",
+   "api": {
+    "color": "green",
+    "remain": 30,
+    "fresh": 100
+   },
+   "vision": {
+    "color": "green",
+    "remain": null,
+    "fresh": 2000
+   },
+   "expect": {
+    "decision": "walk",
+    "reason": "ready"
+   }
+  },
+  {
+   "name": "J30 신선도 경계: 비전 fresh 2001 → camera_unavailable",
+   "api": {
+    "color": "green",
+    "remain": 30,
+    "fresh": 100
+   },
+   "vision": {
+    "color": "green",
+    "remain": null,
+    "fresh": 2001
+   },
+   "expect": {
+    "decision": "wait",
+    "reason": "camera_unavailable"
+   }
+  },
+  {
+   "name": "J31 신선도: 비전 fresh -2001 → camera_unavailable",
+   "api": {
+    "color": "green",
+    "remain": 30,
+    "fresh": 100
+   },
+   "vision": {
+    "color": "green",
+    "remain": null,
+    "fresh": -2001
+   },
+   "expect": {
+    "decision": "wait",
+    "reason": "camera_unavailable"
+   }
+  },
+  {
+   "name": "J32 신선도: API fresh 2001 → api_unavailable",
+   "api": {
+    "color": "green",
+    "remain": 30,
+    "fresh": 2001
+   },
+   "vision": {
+    "color": "green",
+    "remain": null,
+    "fresh": 100
+   },
+   "expect": {
+    "decision": "wait",
+    "reason": "api_unavailable"
+   }
+  },
+  {
+   "name": "J33 신선도: API fresh -1 → api_unavailable",
+   "api": {
+    "color": "green",
+    "remain": 30,
+    "fresh": -1
+   },
+   "vision": {
+    "color": "green",
+    "remain": null,
+    "fresh": 100
+   },
+   "expect": {
+    "decision": "wait",
+    "reason": "api_unavailable"
+   }
+  },
+  {
+   "name": "J34 stale_ms 1000: fresh 1000 → walk",
+   "api": {
+    "color": "green",
+    "remain": 30,
+    "fresh": 1000
+   },
+   "vision": {
+    "color": "green",
+    "remain": null,
+    "fresh": 1000
+   },
+   "stale_ms": 1000,
+   "expect": {
+    "decision": "walk",
+    "reason": "ready"
+   }
+  },
+  {
+   "name": "J35 stale_ms 1000: 비전 fresh 1001 → camera_unavailable",
+   "api": {
+    "color": "green",
+    "remain": 30,
+    "fresh": 1000
+   },
+   "vision": {
+    "color": "green",
+    "remain": null,
+    "fresh": 1001
+   },
+   "stale_ms": 1000,
+   "expect": {
+    "decision": "wait",
+    "reason": "camera_unavailable"
+   }
+  },
+  {
+   "name": "J36 둘 다 stale → sources_unavailable",
+   "api": {
+    "color": "green",
+    "remain": 30,
+    "fresh": 5000
+   },
+   "vision": {
+    "color": "green",
+    "remain": null,
+    "fresh": 5000
+   },
+   "expect": {
+    "decision": "unknown",
+    "reason": "sources_unavailable"
+   }
+  },
+  {
+   "name": "J37 둘 다 null → sources_unavailable",
+   "api": null,
+   "vision": null,
+   "expect": {
+    "decision": "unknown",
+    "reason": "sources_unavailable"
+   }
+  },
+  {
+   "name": "J38 둘 다 unknown 색 → sources_unavailable",
+   "api": {
+    "color": "unknown",
+    "remain": null,
+    "fresh": 100
+   },
+   "vision": {
+    "color": "unknown",
+    "remain": null,
+    "fresh": 100
+   },
+   "expect": {
+    "decision": "unknown",
+    "reason": "sources_unavailable"
+   }
+  },
+  {
+   "name": "J39 API stale·비전 null → sources_unavailable",
+   "api": {
+    "color": "green",
+    "remain": 30,
+    "fresh": 5000
+   },
+   "vision": null,
+   "expect": {
+    "decision": "unknown",
+    "reason": "sources_unavailable"
+   }
+  },
+  {
+   "name": "J40 엄격: API 초록·비전 unknown → camera_unavailable",
+   "api": {
+    "color": "green",
+    "remain": 30,
+    "fresh": 100
+   },
+   "vision": {
+    "color": "unknown",
+    "remain": null,
+    "fresh": 100
+   },
+   "expect": {
+    "decision": "wait",
+    "reason": "camera_unavailable"
+   }
+  },
+  {
+   "name": "J41 엄격: API 초록·비전 null → camera_unavailable",
+   "api": {
+    "color": "green",
+    "remain": 30,
+    "fresh": 100
+   },
+   "vision": null,
+   "expect": {
+    "decision": "wait",
+    "reason": "camera_unavailable"
+   }
+  },
+  {
+   "name": "J42 엄격: API 빨강·비전 unknown → camera_unavailable (API 색 무관)",
+   "api": {
+    "color": "red",
+    "remain": null,
+    "fresh": 100
+   },
+   "vision": {
+    "color": "unknown",
+    "remain": null,
+    "fresh": 100
+   },
+   "expect": {
+    "decision": "wait",
+    "reason": "camera_unavailable"
+   }
+  },
+  {
+   "name": "J43 엄격: API unknown·비전 초록 30 → api_unavailable",
+   "api": {
+    "color": "unknown",
+    "remain": null,
+    "fresh": 100
+   },
+   "vision": {
+    "color": "green",
+    "remain": 30,
+    "fresh": 100
+   },
+   "expect": {
+    "decision": "wait",
+    "reason": "api_unavailable"
+   }
+  },
+  {
+   "name": "J44 엄격: API null·비전 초록 30 → api_unavailable",
+   "api": null,
+   "vision": {
+    "color": "green",
+    "remain": 30,
+    "fresh": 100
+   },
+   "expect": {
+    "decision": "wait",
+    "reason": "api_unavailable"
+   }
+  },
+  {
+   "name": "J45 opt-in: API null·비전 초록 30 → walk",
+   "api": null,
+   "vision": {
+    "color": "green",
+    "remain": 30,
+    "fresh": 100
+   },
+   "allow_single_source": true,
+   "expect": {
+    "decision": "walk",
+    "reason": "ready"
+   }
+  },
+  {
+   "name": "J46 opt-in: API 초록 30·비전 unknown → walk",
+   "api": {
+    "color": "green",
+    "remain": 30,
+    "fresh": 100
+   },
+   "vision": {
+    "color": "unknown",
+    "remain": null,
+    "fresh": 100
+   },
+   "allow_single_source": true,
+   "expect": {
+    "decision": "walk",
+    "reason": "ready"
+   }
+  },
+  {
+   "name": "J47 opt-in: 비전 단독 초록·잔여 null → remaining_unavailable",
+   "api": null,
+   "vision": {
+    "color": "green",
+    "remain": null,
+    "fresh": 100
+   },
+   "allow_single_source": true,
+   "expect": {
+    "decision": "wait",
+    "reason": "remaining_unavailable"
+   }
+  },
+  {
+   "name": "J48 opt-in: 비전 단독 초록 6.9 → remaining_insufficient",
+   "api": null,
+   "vision": {
+    "color": "green",
+    "remain": 6.9,
+    "fresh": 100
+   },
+   "allow_single_source": true,
+   "expect": {
+    "decision": "wait",
+    "reason": "remaining_insufficient"
+   }
+  },
+  {
+   "name": "J49 opt-in: 비전 단독 빨강 → red_signal",
+   "api": null,
+   "vision": {
+    "color": "red",
+    "remain": null,
+    "fresh": 100
+   },
+   "allow_single_source": true,
+   "expect": {
+    "decision": "wait",
+    "reason": "red_signal"
+   }
+  },
+  {
+   "name": "J50 opt-in: 비전 단독 점멸 → clearance",
+   "api": null,
+   "vision": {
+    "color": "clearance",
+    "remain": null,
+    "fresh": 100
+   },
+   "allow_single_source": true,
+   "expect": {
+    "decision": "wait",
+    "reason": "clearance"
+   }
+  },
+  {
+   "name": "J51 opt-in: API 단독 초록·잔여 null → remaining_unavailable",
+   "api": {
+    "color": "green",
+    "remain": null,
+    "fresh": 100
+   },
+   "vision": {
+    "color": "unknown",
+    "remain": null,
+    "fresh": 100
+   },
+   "allow_single_source": true,
+   "expect": {
+    "decision": "wait",
+    "reason": "remaining_unavailable"
+   }
+  },
+  {
+   "name": "J52 opt-in: 둘 다 null → sources_unavailable",
+   "api": null,
+   "vision": null,
+   "allow_single_source": true,
+   "expect": {
+    "decision": "unknown",
+    "reason": "sources_unavailable"
+   }
+  },
+  {
+   "name": "J53 opt-in: 둘 다 가용이면 AND 그대로 (API초록·비전빨강 → conflict)",
+   "api": {
+    "color": "green",
+    "remain": 30,
+    "fresh": 100
+   },
+   "vision": {
+    "color": "red",
+    "remain": null,
+    "fresh": 100
+   },
+   "allow_single_source": true,
+   "expect": {
+    "decision": "wait",
+    "reason": "conflict"
+   }
+  },
+  {
+   "name": "J54 opt-in: 비전 단독 잔여 NaN → remaining_unavailable",
+   "api": null,
+   "vision": {
+    "color": "green",
+    "remain": "NaN",
+    "fresh": 100
+   },
+   "allow_single_source": true,
+   "expect": {
+    "decision": "wait",
+    "reason": "remaining_unavailable"
+   }
+  },
+  {
+   "name": "J55 opt-in: API 단독 초록 7.0(경계) → walk",
+   "api": {
+    "color": "green",
+    "remain": 7.0,
+    "fresh": 100
+   },
+   "vision": null,
+   "allow_single_source": true,
+   "expect": {
+    "decision": "walk",
+    "reason": "ready"
+   }
+  },
+  {
+   "name": "J56 opt-in: API 단독 빨강·비전 stale → red_signal",
+   "api": {
+    "color": "red",
+    "remain": null,
+    "fresh": 100
+   },
+   "vision": {
+    "color": "green",
+    "remain": null,
+    "fresh": 5000
+   },
+   "allow_single_source": true,
+   "expect": {
+    "decision": "wait",
+    "reason": "red_signal"
+   }
+  }
+ ]
+}
