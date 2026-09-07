@@ -94,4 +94,20 @@ void main() {
       '클립 카메라가 접속을 거부했습니다. 기기 토큰 설정을 확인해 주세요. 기다리세요',
     );
   });
+
+  test('wait + 카메라 준비 중 → 준비 중이라고 말한다("향해 주세요" 아님)', () {
+    final text = speechText(
+      Decision.wait,
+      reason: DecisionReason.cameraStarting,
+    );
+    expect(text, '카메라를 준비하는 중입니다. 기다리세요');
+    expect(text, isNot(contains('향해 주세요')));
+  });
+
+  test('wait + 카메라 영상 정지 → 다시 시작 안내', () {
+    expect(
+      speechText(Decision.wait, reason: DecisionReason.cameraStalled),
+      '카메라 영상이 멈췄습니다. 화면을 두 번 눌러 다시 시작해 주세요. 기다리세요',
+    );
+  });
 }

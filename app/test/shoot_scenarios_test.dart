@@ -9,7 +9,8 @@
 //   4 초록 점멸          → "초록불이 곧 끝납니다"
 //   5 잔여 7초 미만       → "안전하게 건널 시간이 부족합니다"
 //   6 빨간불             → "빨간불입니다"
-// 추가: 카메라 권한 거부 / 탭으로 정지 / 클립 카메라 전원 꺼짐(연결 불가) / 클립 토큰 불일치.
+// 추가: 카메라 권한 거부 / 탭으로 정지 / 클립 카메라 전원 꺼짐(연결 불가) / 클립 토큰 불일치
+//       / 시작 직후 준비 중 / 카메라 정지(다시 시작 안내).
 import 'package:camera/camera.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:clip_sense/app/guidance_controller.dart';
@@ -176,6 +177,27 @@ void main() {
     controller.dispose();
     expect(speech.spoken.last, contains('기기 토큰 설정을 확인해 주세요'));
     expect(speech.spoken.last, isNot(contains('향해 주세요')));
+    expect(haptic.played.last, Decision.wait);
+  });
+
+  test('추가: 시작 직후 첫 안내는 준비 중("향해 주세요" 아님)', () async {
+    final said = await scene(
+      api: _api(SignalColor.green, remain: 15),
+      camera: _cam(SignalColor.unknown),
+      status: VisionSourceStatus.starting,
+    );
+    expect(said, '카메라를 준비하는 중입니다. 기다리세요');
+    expect(haptic.played.last, Decision.wait);
+  });
+
+  test('추가: 카메라가 멈추면 다시 시작 안내', () async {
+    final said = await scene(
+      api: _api(SignalColor.green, remain: 15),
+      camera: _cam(SignalColor.unknown),
+      status: VisionSourceStatus.stalled,
+    );
+    expect(said, '카메라 영상이 멈췄습니다. 화면을 두 번 눌러 다시 시작해 주세요. 기다리세요');
+    expect(said, isNot(contains('향해 주세요')));
     expect(haptic.played.last, Decision.wait);
   });
 

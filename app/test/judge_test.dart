@@ -279,11 +279,13 @@ void main() {
       DecisionReason.cameraDenied,
       DecisionReason.clipUnreachable,
       DecisionReason.clipTokenRejected,
+      DecisionReason.cameraStarting,
+      DecisionReason.cameraStalled,
       DecisionReason.apiKeyMissing,
     };
 
     test(
-      'evaluate는 컨트롤러 전용 이유(cameraDenied·clipUnreachable·clipTokenRejected·apiKeyMissing)를 절대 반환하지 않는다',
+      'evaluate는 컨트롤러 전용 이유(cameraDenied·clipUnreachable·clipTokenRejected·cameraStarting·cameraStalled·apiKeyMissing)를 절대 반환하지 않는다',
       () {
         const colors = SignalColor.values;
         final readings = <SignalReading?>[null];
@@ -361,5 +363,13 @@ void main() {
       expect(result.decision, Decision.walk);
       expect(result.reason, DecisionReason.ready);
     });
+  });
+
+  test('문구: 카메라 준비 중 / 영상 정지(끝 마침표 없음 — 화면·음성이 조합)', () {
+    expect(decisionReasonText(DecisionReason.cameraStarting), '카메라를 준비하는 중입니다');
+    expect(
+      decisionReasonText(DecisionReason.cameraStalled),
+      '카메라 영상이 멈췄습니다. 화면을 두 번 눌러 다시 시작해 주세요',
+    );
   });
 }

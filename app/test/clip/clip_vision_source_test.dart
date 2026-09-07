@@ -381,4 +381,98 @@ void main() {
     expect(kClipRequestTimeout, const Duration(milliseconds: 800));
     expect(kClipRoiFrac, 0.25);
   });
+
+  group('정지 감시(stalled)', () {
+    test(
+      '정지(frozen) 프레임이 3초를 넘기면 stalled, 판독은 이미 unknown, 새 프레임에 streaming 복귀',
+      () async {
+        final s = make();
+        await feed(s, 8);
+        expect(s.status, VisionSourceStatus.streaming);
+        ClipFetchOk frozen() => ok(seq: 8, captureUs: 8 * 250000);
+        for (var i = 0; i < 12; i++) {
+          cam.script.add(frozen);
+          now += 250;
+          await s.pollOnce();
+        }
+        // 마지막 accepted 프레임 수신 뒤 3000ms → 아직 streaming(경계 포함).
+        expect(s.status, VisionSourceStatus.streaming);
+        expect(s.latestReading.color, SignalColor.unknown, reason: '2초 규칙이 먼저');
+        cam.script.add(frozen);
+        now += 250;
+        await s.pollOnce();
+        expect(s.status, VisionSourceStatus.stalled);
+        expect(s.diagnostics?.lastReason, 'same_frame');
+
+        await feed(s, 1, startSeq: 9);
+        expect(
+          s.status,
+          VisionSourceStatus.streaming,
+          reason: '래치 없음 — 새 프레임이 오면 복귀',
+        );
+        await s.stop();
+      },
+    );
+
+    test(
+      'stalled 뒤 timeout 은 unreachable 이 우선, 재연결 뒤에도 같은 프레임이면 즉시 stalled',
+      () async {
+        final s = make();
+        await feed(s, 8);
+        ClipFetchOk frozen() => ok(seq: 8, captureUs: 8 * 250000);
+        for (var i = 0; i < 13; i++) {
+          cam.script.add(frozen);
+          now += 250;
+          await s.pollOnce();
+        }
+        expect(s.status, VisionSourceStatus.stalled);
+
+        cam.script.add(() => failed(ClipFetchFailure.timeout));
+        now += 250;
+        await s.pollOnce();
+        expect(s.status, VisionSourceStatus.unreachable);
+
+        // 재연결(같은 프레임 응답)은 진행이 아니다 → 바로 stalled.
+        cam.script.add(frozen);
+        now += 250;
+        await s.pollOnce();
+        expect(s.status, VisionSourceStatus.stalled);
+        await s.stop();
+      },
+    );
+
+    test('503 만 이어지면(기기는 닿는데 프레임이 없음) 첫 응답 3초 뒤 stalled', () async {
+      final s = make();
+      // 첫 응답(k=1)이 기준점. k=13 은 정확히 3000ms(경계 포함 → streaming), k=14 부터 stalled.
+      for (var k = 1; k <= 14; k++) {
+        cam.script.add(
+          () => failed(ClipFetchFailure.captureFailed, status: 503),
+        );
+        now += 250;
+        await s.pollOnce();
+        if (k == 1 || k == 13) {
+          expect(s.status, VisionSourceStatus.streaming, reason: 'k=$k');
+        }
+      }
+      expect(s.status, VisionSourceStatus.stalled);
+      expect(s.latestReading.color, SignalColor.unknown);
+      await s.stop();
+    });
+
+    test('start() 직후 첫 응답 전에는 starting(stalled 아님), stop() 뒤에는 idle', () async {
+      final s = make();
+      cam.gate = Completer<void>();
+      cam.script.add(() => ok(seq: 1, captureUs: 1000));
+      await s.start();
+      now += 10000;
+      expect(s.status, VisionSourceStatus.starting);
+      cam.gate!.complete();
+      await Future<void>.delayed(Duration.zero);
+      expect(s.status, VisionSourceStatus.streaming);
+      now += 10000;
+      expect(s.status, VisionSourceStatus.stalled);
+      await s.stop();
+      expect(s.status, VisionSourceStatus.idle);
+    });
+  });
 }

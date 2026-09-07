@@ -153,6 +153,20 @@ void main() {
     expect(c.decision, Decision.wait);
     expect(c.reason, DecisionReason.cameraUnavailable);
     expect(speech.spoken.last, contains('기다리세요'));
+
+    // 3초를 넘기면 "멈췄다, 다시 시작하라"로 이유가 바뀐다(결정은 그대로 wait).
+    for (var i = 0; i < 4; i++) {
+      await poll(s, () => frame(8));
+    }
+    await c.tickOnce();
+    expect(c.decision, Decision.wait);
+    expect(c.reason, DecisionReason.cameraStalled);
+    expect(speech.spoken.last, '카메라 영상이 멈췄습니다. 화면을 두 번 눌러 다시 시작해 주세요. 기다리세요');
+
+    // 새 프레임이 오면 정지 이유는 사라진다(래치 없음).
+    await poll(s, () => frame(9));
+    await c.tickOnce();
+    expect(c.reason, DecisionReason.cameraUnavailable);
     c.dispose();
   });
 

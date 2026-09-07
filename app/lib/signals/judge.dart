@@ -44,6 +44,20 @@ enum DecisionReason {
   /// 이 상황에서 거짓이므로 "토큰 설정을 확인하라"로 말한다.
   clipTokenRejected,
 
+  /// 카메라 소스가 아직 초기화 중(권한 요청·플러그인 초기화·클립 첫 응답 전)이라
+  /// 판독이 없음. [evaluate]는 만들지 않는다 — GuidanceController 가 VisionSource
+  /// 상태 starting 을 보고 cameraUnavailable 을 이 값으로 바꾼다(결정은 wait).
+  /// 첫 틱에 "신호등을 향하라"고 말하면 거짓이다 — 아직 보지도 않았다. starting 에는
+  /// 정지 감시가 없어 초기화가 멈추면 "준비 중"이 계속된다(실기기 확인 항목).
+  cameraStarting,
+
+  /// 카메라가 스트리밍 상태인데 kVisionStallMs 넘게 새 프레임이 없음(폰 플러그인
+  /// 스트림 정지·클립 카메라 같은 프레임 반복). [evaluate]는 만들지 않는다 —
+  /// 컨트롤러가 VisionSource 상태 stalled 를 보고 바꾼다(결정은 wait; 판독은 이미
+  /// kStaleMs 에서 stale). 사용자가 취할 행동은 "다시 시작"(화면 두 번 탭 = 정지 후
+  /// 시작). 자동 재시작은 실기기 검증 뒤 후속 조각.
+  cameraStalled,
+
   /// 카메라는 쓸 수 있는데 API 판독이 없음(미응답·unknown·stale). 사용자가
   /// 취할 행동은 없고 그냥 기다린다.
   apiUnavailable,
@@ -81,6 +95,13 @@ String decisionReasonText(DecisionReason reason) {
       return '클립 카메라에 연결할 수 없습니다. 전원과 Wi-Fi 연결을 확인해 주세요';
     case DecisionReason.clipTokenRejected:
       return '클립 카메라가 접속을 거부했습니다. 기기 토큰 설정을 확인해 주세요';
+    case DecisionReason.cameraStarting:
+      return '카메라를 준비하는 중입니다';
+    // "두 번 눌러"는 화면 전체가 토글 버튼이라 정지(1회)+시작(1회)이다. 스크린리더
+    // (TalkBack/VoiceOver)에서는 더블탭 한 번이 활성화 한 번이므로 두 번 더블탭해야
+    // 한다 — 문구는 촬영 대본과 같게 두고, 실기기에서 안내가 맞는지 확인할 항목.
+    case DecisionReason.cameraStalled:
+      return '카메라 영상이 멈췄습니다. 화면을 두 번 눌러 다시 시작해 주세요';
     case DecisionReason.apiUnavailable:
       return '신호 정보를 아직 받지 못했습니다';
     case DecisionReason.apiKeyMissing:

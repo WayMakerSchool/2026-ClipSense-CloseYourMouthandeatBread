@@ -580,20 +580,22 @@ void main() {
       c.dispose();
     });
 
-    test('starting·unavailable·failed·idle도 cameraUnavailable 유지', () async {
-      for (final status in [
-        VisionSourceStatus.idle,
-        VisionSourceStatus.starting,
-        VisionSourceStatus.unavailable,
-        VisionSourceStatus.failed,
-      ]) {
-        final c = withVision(FakeVisionSource(visionUnknown, status: status));
-        await c.tickOnce();
-        expect(c.decision, Decision.wait, reason: '$status');
-        expect(c.reason, DecisionReason.cameraUnavailable, reason: '$status');
-        c.dispose();
-      }
-    });
+    test(
+      'unavailable·failed·idle 은 cameraUnavailable 유지(starting 은 cameraStarting, 별도 표)',
+      () async {
+        for (final status in [
+          VisionSourceStatus.idle,
+          VisionSourceStatus.unavailable,
+          VisionSourceStatus.failed,
+        ]) {
+          final c = withVision(FakeVisionSource(visionUnknown, status: status));
+          await c.tickOnce();
+          expect(c.decision, Decision.wait, reason: '$status');
+          expect(c.reason, DecisionReason.cameraUnavailable, reason: '$status');
+          c.dispose();
+        }
+      },
+    );
 
     test('권한 거부여도 카메라 판독이 살아 있으면(이유가 카메라 불가가 아니면) 매핑하지 않는다', () async {
       // 상태가 잘못 남아 있어도 judge 결과가 cameraUnavailable일 때만 바꾼다.
@@ -1028,6 +1030,123 @@ void main() {
       );
       await c.tickOnce();
       expect(c.reason, DecisionReason.redSignal);
+      c.dispose();
+    });
+  });
+
+  group('카메라 준비 중·정지 이유 매핑', () {
+    const visionUnknown = SignalReading(
+      SignalColor.unknown,
+      null,
+      SignalSource.vision,
+    );
+    GuidanceController withVision(
+      FakeVisionSource vision, {
+      String apiKey = 'k',
+    }) => GuidanceController(
+      feedback: feedback,
+      itstId: '1850',
+      direction: 'st',
+      vision: vision,
+      allowSingleSource: false,
+      clock: () => 0,
+      apiKey: apiKey,
+      fetch: (itstId, direction, apiKey, {required nowMs}) async =>
+          const SignalReading(SignalColor.green, 15, SignalSource.api),
+    );
+
+    test('status → 이유 매핑표(결정은 전부 wait; 상태는 서로 배타적)', () async {
+      final cases = <(VisionSourceStatus, VisionDiagnostics?, DecisionReason)>[
+        (
+          VisionSourceStatus.permissionDenied,
+          null,
+          DecisionReason.cameraDenied,
+        ),
+        (VisionSourceStatus.unreachable, null, DecisionReason.clipUnreachable),
+        (
+          VisionSourceStatus.failed,
+          const VisionDiagnostics(lastReason: 'token_rejected'),
+          DecisionReason.clipTokenRejected,
+        ),
+        (VisionSourceStatus.failed, null, DecisionReason.cameraUnavailable),
+        (
+          VisionSourceStatus.stalled,
+          const VisionDiagnostics(lastReason: 'same_frame'),
+          DecisionReason.cameraStalled,
+        ),
+        (VisionSourceStatus.starting, null, DecisionReason.cameraStarting),
+        (VisionSourceStatus.streaming, null, DecisionReason.cameraUnavailable),
+        (VisionSourceStatus.idle, null, DecisionReason.cameraUnavailable),
+        (
+          VisionSourceStatus.unavailable,
+          null,
+          DecisionReason.cameraUnavailable,
+        ),
+      ];
+      for (final (status, diag, expected) in cases) {
+        final c = withVision(
+          FakeVisionSource(visionUnknown, status: status, diagnostics: diag),
+        );
+        await c.tickOnce();
+        expect(c.decision, Decision.wait, reason: '$status');
+        expect(c.reason, expected, reason: '$status');
+        c.dispose();
+      }
+    });
+
+    test('API 키 누락이 stalled·starting 보다 우선한다', () async {
+      for (final status in [
+        VisionSourceStatus.stalled,
+        VisionSourceStatus.starting,
+      ]) {
+        final c = GuidanceController(
+          feedback: feedback,
+          itstId: '1850',
+          direction: 'st',
+          vision: FakeVisionSource(visionUnknown, status: status),
+          allowSingleSource: false,
+          apiKey: '',
+        );
+        await c.tickOnce();
+        expect(c.reason, DecisionReason.apiKeyMissing, reason: '$status');
+        c.dispose();
+      }
+    });
+
+    test(
+      'stalled 여도 카메라 판독이 살아 있으면(judge 가 카메라 불가라 하지 않으면) 매핑하지 않는다',
+      () async {
+        final c = withVision(
+          FakeVisionSource(
+            const SignalReading(SignalColor.red, null, SignalSource.vision),
+            status: VisionSourceStatus.stalled,
+          ),
+        );
+        await c.tickOnce();
+        expect(c.reason, DecisionReason.conflict);
+        c.dispose();
+      },
+    );
+
+    test('준비 중 → 정지 → 복귀: 이유가 바뀔 때마다 순서대로 다시 말하고 같은 이유는 침묵한다', () async {
+      final vision = FakeVisionSource(
+        visionUnknown,
+        status: VisionSourceStatus.starting,
+      );
+      final c = withVision(vision);
+      await c.tickOnce();
+      expect(speech.spoken.last, '카메라를 준비하는 중입니다. 기다리세요');
+      final count1 = speech.spoken.length;
+      await c.tickOnce();
+      expect(speech.spoken.length, count1, reason: '같은 이유는 침묵');
+
+      vision.status = VisionSourceStatus.stalled;
+      await c.tickOnce();
+      expect(speech.spoken.last, '카메라 영상이 멈췄습니다. 화면을 두 번 눌러 다시 시작해 주세요. 기다리세요');
+
+      vision.status = VisionSourceStatus.streaming;
+      await c.tickOnce();
+      expect(speech.spoken.last, '카메라가 신호등을 찾지 못했습니다. 신호등을 향해 주세요. 기다리세요');
       c.dispose();
     });
   });

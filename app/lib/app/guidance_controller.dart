@@ -239,6 +239,20 @@ class GuidanceController extends ChangeNotifier {
             result.decision,
             DecisionReason.clipTokenRejected,
           );
+        } else if (status == VisionSourceStatus.stalled) {
+          // 프레임이 kVisionStallMs 넘게 끊겼다(플러그인 정지·클립 같은 프레임 반복).
+          // "향하라"가 아니라 "다시 시작"이 사용자가 취할 행동이다. 자동 재시작은
+          // 실기기 검증 없이는 넣지 않는다(후속 조각: stalled 지속 시 stop→start 1회).
+          result = DecisionResult(
+            result.decision,
+            DecisionReason.cameraStalled,
+          );
+        } else if (status == VisionSourceStatus.starting) {
+          // 아직 보지도 않았다 — 첫 틱에 "향하라"는 거짓. 준비 중이라고만 말한다.
+          result = DecisionResult(
+            result.decision,
+            DecisionReason.cameraStarting,
+          );
         }
       }
       if (!_apiConfigured) {

@@ -18,6 +18,12 @@
 /// * 401/403 은 failed(token_rejected) 로 두고 폴링을 멈춘다. 같은 토큰으로
 ///   재시도해도 결과가 같다. 다음 start() 에서 다시 시도한다.
 /// * timeout/transport 는 unreachable — 폴링은 계속하고 다음 응답에서 복귀.
+/// * 같은 프레임(sameFrame)·503 등만 kVisionStallMs 넘게 이어지면 status 는 stalled —
+///   마지막 accepted 프레임 수신 시각(세션 첫 응답에서 초기화)으로 파생하며 래치가
+///   없어 새 accepted 프레임이 오면 streaming 으로 복귀한다. 판독은 이미 kStaleMs 에서
+///   지워져 있다. timeout/transport 는 그대로 unreachable 이 우선(스트리밍이 아니므로
+///   stalled 아님). 재연결 자체는 진행이 아니다 — 복귀 뒤에도 프레임이 새로 오지
+///   않으면 즉시 stalled. 자동 재시작 없음(후속 조각).
 ///
 /// 이 클래스는 실기기(보드·폰)에서 검증되지 않았다. MockClient·루프백 HttpServer
 /// ·스크립트 카메라로만 검증됐다.
@@ -84,6 +90,7 @@ class ClipVisionSource implements VisionSource {
   final double _roiFrac;
   final Duration _pollInterval;
   final int _staleMs;
+  final int _stallMs;
   final int Function() _mono;
   final RoiImage? Function(Uint8List jpeg, double roiFrac) _decode;
 
@@ -103,6 +110,10 @@ class ClipVisionSource implements VisionSource {
   ClipCaptureMeta? _lastMeta;
   int? _lastRttMs;
 
+  /// 정지 감시 기준점(폰 단조 ms): 세션의 첫 응답에서 초기화, 이후 accepted
+  /// 프레임마다 갱신. 실패 응답·재연결은 진행이 아니다.
+  int? _lastProgressMonoMs;
+
   /// [baseUrl]·[token] 으로 실제 [ClipSnapshotClient] 를 만든다. 테스트는
   /// [capture] 로 전송을, [monoClock] 으로 시계를, [decoder] 로 디코드를 주입한다.
   ClipVisionSource({
@@ -113,6 +124,7 @@ class ClipVisionSource implements VisionSource {
     Duration pollInterval = kClipPollInterval,
     Duration requestTimeout = kClipRequestTimeout,
     int staleMs = kStaleMs,
+    int stallMs = kVisionStallMs,
     ClipCapture? capture,
     int Function()? monoClock,
     RoiImage? Function(Uint8List jpeg, double roiFrac)? decoder,
@@ -132,6 +144,7 @@ class ClipVisionSource implements VisionSource {
        _roiFrac = roiFrac,
        _pollInterval = pollInterval,
        _staleMs = staleMs,
+       _stallMs = stallMs,
        _mono = monoClock ?? _defaultMonoMs,
        _decode = decoder ?? decodeJpegToRoiBgr,
        _pipeline = VisionPipeline(config);
@@ -168,8 +181,19 @@ class ClipVisionSource implements VisionSource {
     );
   }
 
+  /// 내부 `_status` 는 stalled 를 갖지 않는다 — 스트리밍 중 마지막 accepted 프레임
+  /// 나이로 파생한다([statusForStream]).
   @override
-  VisionSourceStatus get status => _status;
+  VisionSourceStatus get status {
+    final anchor = _lastProgressMonoMs;
+    return statusForStream(
+      _status,
+      lastFrameAgeMs: _status == VisionSourceStatus.streaming && anchor != null
+          ? (_mono() - anchor).clamp(0, 1 << 31)
+          : null,
+      stallMs: _stallMs,
+    );
+  }
 
   @override
   VisionDiagnostics? get diagnostics {
@@ -196,6 +220,7 @@ class ClipVisionSource implements VisionSource {
     _desiredRunning = true;
     _generation++;
     _status = VisionSourceStatus.starting;
+    _lastProgressMonoMs = null;
     _tracker.reset();
     _pipeline.reset();
     _invalidateReading();
@@ -208,6 +233,7 @@ class ClipVisionSource implements VisionSource {
     _desiredRunning = false;
     _generation++;
     _status = VisionSourceStatus.idle;
+    _lastProgressMonoMs = null;
     _invalidateReading();
     _resetDiagnostics();
     _tracker.reset();
@@ -267,8 +293,8 @@ class ClipVisionSource implements VisionSource {
             _fail(reason, VisionSourceStatus.streaming);
         }
       case ClipFetchOk(:final meta, :final jpeg):
-        _status = VisionSourceStatus.streaming;
         final now = _mono();
+        _enterStreaming(now);
         final observation = _tracker.observe(
           meta,
           rttMs: result.rttMs,
@@ -282,6 +308,7 @@ class ClipVisionSource implements VisionSource {
         switch (observation.verdict) {
           case ClipFrameVerdict.accepted:
             _lastMeta = meta;
+            _lastProgressMonoMs = now; // 새 프레임 = 진행(디코드 결과와 무관)
             _accept(meta, jpeg, observation.capturedAtMonoMs!, now);
           case ClipFrameVerdict.sameFrame:
             // 신선도를 갱신하지 않는다 — 판독은 그대로 늙는다. 2초를 넘긴
@@ -346,10 +373,22 @@ class ClipVisionSource implements VisionSource {
 
   /// 전송 실패: 판독 무효 + 파이프라인 리셋 + 상태·이유 기록.
   void _fail(String reason, VisionSourceStatus status) {
-    _status = status;
+    final now = _mono();
+    if (status == VisionSourceStatus.streaming) {
+      _enterStreaming(now); // 기기는 닿는다(409/503/헤더 불량) — 응답은 받았다
+    } else {
+      _status = status;
+    }
     _pipeline.reset();
     _invalidateReading();
-    _recordFailure(reason, _mono());
+    _recordFailure(reason, now);
+  }
+
+  /// 응답을 받아 스트리밍 상태로 들어간다. 정지 감시 기준점은 세션의 첫 응답에서만
+  /// 초기화한다 — 재연결이나 실패 응답은 진행이 아니므로 기준점을 당기지 않는다.
+  void _enterStreaming(int now) {
+    _status = VisionSourceStatus.streaming;
+    _lastProgressMonoMs ??= now;
   }
 
   void _recordFailure(String reason, int now, {int processMs = 0}) {

@@ -70,6 +70,16 @@ enum VisionSourceStatus {
   /// 프레임 스트림 수신 중([VisionSource.previewController]가 유효한 유일한 상태).
   streaming,
 
+  /// 스트리밍 중인데 kVisionStallMs 넘게 새 프레임이 처리되지 않음 — 폰 플러그인
+  /// 스트림이 조용히 멈췄거나 클립 카메라가 같은 프레임만 돌려준다. 구현체의 내부
+  /// 필드가 아니라 [statusForStream] 이 프레임 나이로 파생하는 값이라 프레임이 다시
+  /// 오면 저절로 streaming 으로 돌아온다(래치 없음). 판독은 이미 kStaleMs 에서
+  /// unknown/stale 이므로 판정은 그대로 wait; 컨트롤러가 cameraUnavailable 이유를
+  /// cameraStalled("영상이 멈췄다, 다시 시작")로 바꾼다. 자동 재시작은 넣지 않는다 —
+  /// 실기기 없이 검증할 수 없다(후속 조각). starting 에는 감시가 없다: 권한
+  /// 다이얼로그가 열려 있거나 initialize() 가 멈추면 "준비 중"이 계속된다.
+  stalled,
+
   /// 카메라 권한 거부. 신호등을 향해도 못 고치고 설정에서 허용해야 한다.
   permissionDenied,
 
@@ -194,6 +204,23 @@ VisionSourceStatus statusFromCameraError(Object e) {
   return VisionSourceStatus.failed;
 }
 
+/// 정지 감시(순수 함수). [status] 가 streaming 이고 마지막 처리 프레임 나이
+/// [lastFrameAgeMs] 가 [stallMs] 를 넘으면 stalled, 아니면 [status] 그대로.
+/// streaming 이 아닌 상태(unreachable·failed·permissionDenied…)는 나이와 무관하게
+/// 유지된다 — 더 구체적인 실패가 우선이다. 나이를 모르면(null) 판단하지 않는다.
+VisionSourceStatus statusForStream(
+  VisionSourceStatus status, {
+  required int? lastFrameAgeMs,
+  int stallMs = kVisionStallMs,
+}) {
+  if (status != VisionSourceStatus.streaming || lastFrameAgeMs == null) {
+    return status;
+  }
+  return lastFrameAgeMs > stallMs
+      ? VisionSourceStatus.stalled
+      : VisionSourceStatus.streaming;
+}
+
 abstract interface class VisionSource {
   /// 최신 판정. 구현체는 호출 시점까지의 실제 경과 시간을 freshMs에 반영한다.
   SignalReading get latestReading;
@@ -237,6 +264,10 @@ class CameraVisionSource implements VisionSource {
   int? _diagnosticsElapsedMs;
   int _framesProcessed = 0;
 
+  /// 마지막으로 프레임을 "처리한" 스톱워치 시각(ms). 손상 프레임(frame_error)도
+  /// 플러그인이 프레임을 주고 있다는 증거라 갱신한다. 정지 감시의 기준.
+  int _lastProgressElapsedMs = 0;
+
   /// 사용 가능한 카메라 목록 조회. 테스트가 플랫폼 채널 없이 초기화 실패
   /// 경로를 재현할 수 있도록 주입 가능하게 둔다(기본은 플러그인 함수).
   final Future<List<CameraDescription>> Function() _cameraLister;
@@ -273,8 +304,18 @@ class CameraVisionSource implements VisionSource {
     );
   }
 
+  /// 내부 `_status` 는 stalled 를 갖지 않는다 — 스트리밍 중 마지막 처리 프레임의
+  /// 나이로 파생한다. 실제 플러그인 정지는 실기기 미검증(시간 계산만 테스트).
   @override
-  VisionSourceStatus get status => _status;
+  VisionSourceStatus get status => statusForStream(
+    _status,
+    lastFrameAgeMs: _status == VisionSourceStatus.streaming
+        ? (_clock.elapsedMilliseconds - _lastProgressElapsedMs).clamp(
+            0,
+            1 << 31,
+          )
+        : null,
+  );
 
   @override
   VisionDiagnostics? get diagnostics {
@@ -371,6 +412,8 @@ class CameraVisionSource implements VisionSource {
         ..reset()
         ..start();
       await controller.startImageStream(_handleImage);
+      // 정지 감시 기준점: 스트림이 막 열린 지금부터 잰다(첫 프레임 전에도 시간이 간다).
+      _lastProgressElapsedMs = _clock.elapsedMilliseconds;
       _status = VisionSourceStatus.streaming;
 
       // stop()이 startImageStream의 플랫폼 round-trip 중 들어온 경우.
@@ -440,6 +483,8 @@ class CameraVisionSource implements VisionSource {
         _recordDiagnostics(null, stopwatch.elapsedMilliseconds);
       } catch (_) {}
     } finally {
+      // 성공·손상 모두 "플러그인이 프레임을 주고 있다" — 정지 감시 기준점 갱신.
+      _lastProgressElapsedMs = _clock.elapsedMilliseconds;
       _processingFrame = false;
     }
   }

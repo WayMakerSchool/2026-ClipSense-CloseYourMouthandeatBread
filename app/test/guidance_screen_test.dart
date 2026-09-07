@@ -397,6 +397,24 @@ void main() {
 
     // 한 줄 문구는 순수 함수로 고정한다(화면 테스트와 같은 포맷).
     group('diagnosticsLine', () {
+      test('정지 감시: stalled 상태·same_frame 이유', () {
+        expect(
+          diagnosticsLine(
+            vision: const SignalReading(
+              SignalColor.unknown,
+              null,
+              SignalSource.vision,
+            ),
+            status: VisionSourceStatus.stalled,
+            diagnostics: const VisionDiagnostics(
+              lastReason: 'same_frame',
+              lastFrameAgeMs: 3200,
+            ),
+          ),
+          'API — · 카메라 없음 — stalled · 0ms · 신선 3200ms · same_frame',
+        );
+      });
+
       test('전부 있음', () {
         expect(
           diagnosticsLine(
@@ -545,5 +563,25 @@ void main() {
       expect(speech.spoken, isEmpty);
       c.dispose();
     });
+  });
+
+  testWidgets('wait + 카메라 정지(stalled) → 화면·음성에 다시 시작 안내', (tester) async {
+    final speech = FakeSpeech();
+    final c = makeController(
+      const SignalReading(SignalColor.green, 15, SignalSource.api, freshMs: 0),
+      speech: speech,
+      allowSingleSource: false,
+      vision: FakeVisionSource(
+        const SignalReading(SignalColor.unknown, null, SignalSource.vision),
+        status: VisionSourceStatus.stalled,
+      ),
+    );
+    await tester.pumpWidget(MaterialApp(home: GuidanceScreen(controller: c)));
+    await c.tickOnce();
+    await tester.pump();
+    expect(find.textContaining('카메라 영상이 멈췄습니다'), findsOneWidget);
+    expect(find.textContaining('향해 주세요'), findsNothing);
+    expect(speech.spoken.last, '카메라 영상이 멈췄습니다. 화면을 두 번 눌러 다시 시작해 주세요. 기다리세요');
+    c.dispose();
   });
 }

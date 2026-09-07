@@ -12,6 +12,16 @@ const Duration kLoopInterval = Duration(seconds: 1);
 /// 기본값과 같지만 컨트롤러는 이 상수를 명시적으로 넘긴다.
 const int kStaleMs = 2000;
 
+/// 카메라 정지 감시 한계(ms). 스트리밍 상태인데 이 시간 넘게 새 프레임이 처리되지
+/// 않으면 소스 상태를 stalled 로 보고한다(폰 플러그인 스트림이 조용히 끊기거나
+/// 클립 카메라가 같은 프레임만 돌려주는 경우).
+///
+/// kStaleMs(2000)보다 길어야 한다: 판독은 2초에 judge 에서 먼저 탈락해 wait 가 되고
+/// 1초 뒤에야 이유만 "영상이 멈췄다"로 바뀐다 — 정지 안내가 안전 탈락보다 먼저
+/// 나오는 일이 없고, stalled 인 소스의 판독은 항상 stale 이라 walk 근거가 될 수 없다.
+/// 폰(30fps, 3장마다 처리)·클립(4Hz 폴링) 어느 쪽도 정상이면 3초 무프레임은 없다.
+const int kVisionStallMs = 3000;
+
 /// T-Data API 키. 하드코딩 금지 — --dart-define=TDATA_KEY=... 로 주입.
 const String kApiKey = String.fromEnvironment('TDATA_KEY');
 

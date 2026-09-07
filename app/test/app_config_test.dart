@@ -31,4 +31,9 @@ void main() {
     expect(kClipRequestTimeout, const Duration(milliseconds: 800));
     expect(kClipRoiFrac, 0.25);
   });
+
+  test('kVisionStallMs: 3초 — 신선도 한계(kStaleMs)보다 길어 정지 안내가 안전 탈락 뒤에만 나온다', () {
+    expect(kVisionStallMs, 3000);
+    expect(kVisionStallMs, greaterThan(kStaleMs));
+  });
 }
