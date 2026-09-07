@@ -18,9 +18,12 @@ GREEN 프레임 수와 초록 blob 면적 비율을 기록한다.
     640x480 roi=0.25 -> GREEN 30/84  green_area max=0.0291
 
 결론: 전체 프레임(roi=1.0)은 min_area_ratio 0.005 를 절대 넘지 못한다 → 클립
-소스는 중앙 크롭이 필수. 기본값 0.5(QVGA→160x120)가 가장 많은 프레임을 잡는다.
-ROI 를 0.25 로 좁히면 면적은 커지지만 조준이 없는 옷깃 카메라에서는 램프가
-크롭 밖으로 나가는 프레임이 늘어난다. 실기기 프레임으로 다시 측정할 것.
+소스는 중앙 크롭이 필수. 이 표만 보면 0.5 가 가장 많은 프레임을 잡지만, 4:3 으로
+정직하게 자른 QVGA fixture(scripts/dump_clip_qvga_fixture.py)에서는 0.5 가 점멸
+**소등** 프레임(34)에서도 GREEN(0.82%) 을 내 점멸을 놓치므로 기본값은 0.25 다
+(app/lib/app/config.dart kClipRoiFrac). 0.25 는 조준이 없는 옷깃 카메라에서 램프가
+크롭 밖으로 나가는 프레임이 늘어나는 대가가 있다(안전 방향: 못 보면 대기).
+실기기 프레임으로 다시 측정할 것.
 
     .venv/bin/python scripts/measure_clip_frame_size.py [--video PATH]
 """

@@ -8,6 +8,13 @@
 > **상태:** 사양 확정·구현 완료·컴파일 검증 완료. **실기기 미검증** — 보드가
 > 확보되기 전이라 업로드·촬영·발열·연속 동작은 측정하지 않았다. 아래 "실기기
 > 검증 전 주장하지 않는 것"을 참고할 것.
+>
+> 폰 쪽 Snapshot Adapter는 `app/lib/clip/`에 구현됐다(헤더 파서·신선도/정지/재부팅
+> 추적·스냅샷 클라이언트·JPEG 디코드·`ClipVisionSource`). MockClient·루프백
+> HttpServer·cv2 인코딩 QVGA fixture로 검증했고 실기기 왕복은 미검증이다. 판정 쪽은
+> QVGA 전체가 아니라 **중앙 25%**만 본다(전체 프레임에서는 램프가 면적 임계를 넘지
+> 못함) — `config.h`의 "320px 전체" 전제와 다르며, VGA+50% 프로필은 보드 확보 후
+> 측정할 항목이다([app/README.md](../app/README.md)).
 
 설계 근거: `ClipSense 하드웨어 최종설계·제작 보고서 v0.2` §9~§10.
 
@@ -193,6 +200,6 @@ firmware/
     ├── config.h              고정 설정 (핀맵·프로필·CORS·타임아웃)
     ├── secrets.example.h     secrets.h 템플릿 (실제 값은 커밋 금지)
     ├── camera_service.h/.cpp 카메라 초기화, mutex, 원자적 프레임+메타데이터
-    ├── network_manager.h/.cpp Wi-Fi 상태기계, mDNS, 복구 AP
+    ├── clip_network.h/.cpp   Wi-Fi 상태기계, mDNS, 복구 AP (ESP32 코어의 NetworkManager 와 이름 충돌 회피)
     └── http_api.h/.cpp       /health · /capture · 토큰 인증 · CORS
 ```
