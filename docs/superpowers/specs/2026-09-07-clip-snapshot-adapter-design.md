@@ -93,9 +93,18 @@ INTER_AREA로 320x240, cv2 JPEG q80. 프레임 20(점등)·34(점멸 소등).
 
 ## 다음 조각
 
-1. `scripts/clip_cam_sim.py` — 표준 라이브러리 HTTP 서버로 펌웨어 계약을 흉내(QVGA
-   전체 프레임 JPEG, 503/정지/재부팅/토큰 오류 주입) → 앱 끝단·macOS 스모크.
-2. 카메라 정지 감시(폰·클립 공용 `stalled` 상태와 "카메라 영상이 멈췄습니다" 안내).
-3. Python 미러(`clip_snapshot.py`, 신선도 골든 JSON을 Dart와 공유, 부스 데모 `--clip-host`).
-4. 덱·보고서 정합(클립 어댑터 구현 반영, 테스트 수, "차량 소리 감지" 표기 제거).
+1. ~~`scripts/clip_cam_sim.py` — 펌웨어 계약 시뮬레이터 + 블랙박스 검사기~~ 완료(같은 날 저녁):
+   `scripts/clip_cam_sim.py`(장애 주입 freeze/503/busy/reboot/stall/헤더·매체 불량, 런타임
+   `POST /__sim/fault {"mode":...}`), `scripts/check_clip_cam_contract.py`(24항목, 실기기에도
+   사용 가능), `scripts/test_clip_cam_sim.py`(CI), 선택 실행 Dart 끝단 테스트
+   `app/test/clip/clip_sim_e2e_test.dart`(실소켓으로 freeze→same_frame·reboot→새 bootId·
+   503·stall→815ms 타임아웃→unreachable·복귀 확인). macOS 스모크(앱 실행)는 미실행.
+2. ~~카메라 정지 감시~~ 완료: `VisionSourceStatus.stalled`(파생, `statusForStream`,
+   `kVisionStallMs=3000`), `DecisionReason.cameraStarting`·`cameraStalled`, 자동 재시작은 실기기 뒤.
+3. ~~Python 미러~~ 완료: `judge.py evaluate()`(Dart 이유 15개 미러, need_sec<0 WALK 결함 수정),
+   `clip_snapshot.py`, 골든 `app/test/fixtures/judge_cases.json`·`clip_freshness_cases.json`을
+   Dart·Python 양쪽 테스트가 읽음. 부스 데모 `--clip-host` 배선은 아직.
+4. 덱·보고서 정합(클립 어댑터·시뮬레이터·정지 감시 반영, 테스트 수, "차량 소리 감지" 표기 제거).
+6. 부스 데모(main.py)에 클립 스냅샷 소스 `--clip-host` 추가(clip_snapshot.py 재사용).
+7. macOS 데스크톱에서 시뮬레이터 상대로 앱 실행(카메라 플러그인 미지원이라 클립 경로만).
 5. ~~펌웨어: bootId 엔트로피(RF 초기화 전 `esp_random()`) 보강 검토.~~ 완료(6427871): eFuse MAC·RTC 부팅 카운터·타이머·`esp_random()`을 FNV-1a로 섞음, 컴파일 검증.
