@@ -41,6 +41,8 @@ dependencies:
   vibration: ^3.1.8
   geolocator: ^14.0.2
   camera: 0.11.2+1
+  # 클립 카메라 /capture JPEG 디코드(순수 Dart). decodeJpg 만 쓴다.
+  image: ^4.7.2
 
 dev_dependencies:
   flutter_test:

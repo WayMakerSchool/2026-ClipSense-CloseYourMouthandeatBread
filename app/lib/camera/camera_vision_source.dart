@@ -18,12 +18,10 @@ import 'package:flutter/services.dart';
 
 import '../app/config.dart';
 import '../signals/signal_reading.dart';
-import '../signals/vision_adapter.dart';
 import '../vision/color_detector.dart';
 import '../vision/detector_config.dart';
-import '../vision/digit_reader.dart';
 import '../vision/roi_image.dart';
-import '../vision/signal_state_machine.dart';
+import '../vision/vision_pipeline.dart';
 import 'frame_converter.dart';
 
 /// kClipDebug 빌드에서 처리 프레임 N개마다 debugPrint 한 줄(로그 폭주 방지).
@@ -211,13 +209,11 @@ abstract interface class VisionSource {
 }
 
 class CameraVisionSource implements VisionSource {
-  final DetectorConfig _config;
   final double _roiFrac;
   final int _processEveryN;
 
-  ColorDetector _detector;
-  SignalStateMachine _stateMachine;
-  DigitReader _digitReader;
+  /// 검출→상태머신→숫자→판독. 클립 카메라 소스와 같은 객체를 쓴다.
+  final VisionPipeline _pipeline;
 
   CameraController? _controller;
   Future<void> _lifecycle = Future<void>.value();
@@ -246,12 +242,9 @@ class CameraVisionSource implements VisionSource {
   }) : assert(roiFrac > 0 && roiFrac <= 1),
        assert(processEveryN > 0),
        _cameraLister = cameraLister ?? availableCameras,
-       _config = config,
        _roiFrac = roiFrac,
        _processEveryN = processEveryN,
-       _detector = ColorDetector(config),
-       _stateMachine = SignalStateMachine(config),
-       _digitReader = DigitReader(config);
+       _pipeline = VisionPipeline(config);
 
   static const SignalReading _unknownReading = SignalReading(
     SignalColor.unknown,
@@ -423,16 +416,15 @@ class CameraVisionSource implements VisionSource {
     final stopwatch = Stopwatch()..start();
     try {
       final roi = rotateBgr(_convert(image), _frameRotationDegrees());
-      final frame = _detector.detect(roi);
       final t = _clock.elapsedMicroseconds / Duration.microsecondsPerSecond;
-      _stateMachine.update(t, frame.raw, reason: frame.reason);
-      final remainSec = _digitReader.read(roi)?.toDouble();
-      _latest = toReading(_stateMachine.state, remainSec: remainSec);
+      final result = _pipeline.process(roi, t);
+      _latest = result.reading;
       _lastFrameElapsedMs = _clock.elapsedMilliseconds;
-      _recordDiagnostics(frame, stopwatch.elapsedMilliseconds);
+      _recordDiagnostics(result.frame, stopwatch.elapsedMilliseconds);
     } catch (_) {
       // 손상 프레임 뒤에 이전 GREEN 상태가 즉시 부활하지 않도록 상태 이력도
-      // 함께 비운다. 다음 정상 프레임은 다시 debounce를 통과해야 한다.
+      // 함께 비운다(변환 단계 실패도 포함). 다음 정상 프레임은 다시 debounce를
+      // 통과해야 한다.
       _resetPipeline();
       _invalidateReading();
       // 진단은 판정과 무관한 부산물이다. 여기서 던지면 플러그인 스트림
@@ -546,9 +538,7 @@ class CameraVisionSource implements VisionSource {
   }
 
   void _resetPipeline() {
-    _detector = ColorDetector(_config);
-    _stateMachine = SignalStateMachine(_config);
-    _digitReader = DigitReader(_config);
+    _pipeline.reset();
     _frameIndex = 0;
   }
 

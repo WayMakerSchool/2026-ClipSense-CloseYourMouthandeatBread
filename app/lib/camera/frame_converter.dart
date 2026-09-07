@@ -31,16 +31,19 @@ class YuvPlanes {
   });
 }
 
-class _Crop {
+/// 프레임 안의 중앙 ROI 사각형(픽셀).
+class CropRect {
   final int x;
   final int y;
   final int width;
   final int height;
 
-  const _Crop(this.x, this.y, this.width, this.height);
+  const CropRect(this.x, this.y, this.width, this.height);
 }
 
-_Crop _centerCrop(int width, int height, double roiFrac) {
+/// [width]x[height] 프레임에서 가로·세로 [roiFrac] 비율의 중앙 사각형.
+/// roiFrac 이 (0, 1] 밖이면 RangeError, 크기가 0 이하면 ArgumentError.
+CropRect centerCrop(int width, int height, double roiFrac) {
   if (width <= 0 || height <= 0) {
     throw ArgumentError('frame width and height must be positive');
   }
@@ -50,7 +53,7 @@ _Crop _centerCrop(int width, int height, double roiFrac) {
 
   final cropWidth = (width * roiFrac).round().clamp(1, width);
   final cropHeight = (height * roiFrac).round().clamp(1, height);
-  return _Crop(
+  return CropRect(
     (width - cropWidth) ~/ 2,
     (height - cropHeight) ~/ 2,
     cropWidth,
@@ -75,7 +78,7 @@ RoiImage yuv420ToRoiBgr(YuvPlanes planes, double roiFrac) {
       planes.uvPixelStride <= 0) {
     throw ArgumentError('plane strides must be positive');
   }
-  final crop = _centerCrop(planes.width, planes.height, roiFrac);
+  final crop = centerCrop(planes.width, planes.height, roiFrac);
   final out = Uint8List(crop.width * crop.height * 3);
 
   var dst = 0;
@@ -118,7 +121,7 @@ RoiImage bgra8888ToRoiBgr(
   if (bytesPerRow < width * 4) {
     throw ArgumentError('bytesPerRow is too small for BGRA8888 width');
   }
-  final crop = _centerCrop(width, height, roiFrac);
+  final crop = centerCrop(width, height, roiFrac);
   final out = Uint8List(crop.width * crop.height * 3);
 
   var dst = 0;
@@ -180,4 +183,21 @@ RoiImage rotateBgr(RoiImage source, int clockwiseDegrees) {
     }
   }
   return RoiImage(dstW, dstH, out);
+}
+
+/// 이미 BGR 인 전체 프레임(예: 디코드된 JPEG)의 중앙 ROI 만 복사한다.
+/// roiFrac 1.0 이면 복사 없이 같은 객체를 돌려준다.
+RoiImage bgrCenterCrop(RoiImage full, double roiFrac) {
+  final crop = centerCrop(full.width, full.height, roiFrac);
+  if (crop.width == full.width && crop.height == full.height) return full;
+  if (full.bytes.length < full.width * full.height * 3) {
+    throw ArgumentError('BGR frame bytes are shorter than width*height*3');
+  }
+  final out = Uint8List(crop.width * crop.height * 3);
+  final rowBytes = crop.width * 3;
+  for (var dy = 0; dy < crop.height; dy++) {
+    final src = ((crop.y + dy) * full.width + crop.x) * 3;
+    out.setRange(dy * rowBytes, (dy + 1) * rowBytes, full.bytes, src);
+  }
+  return RoiImage(crop.width, crop.height, out);
 }
