@@ -103,10 +103,10 @@ flowchart LR
 
 ## 👥 팀원
 
-| <img src="https://github.com/daniellim2022.png" width="100"> | <img src="https://github.com/깃허브아이디.png" width="100"> |
+| <img src="https://github.com/daniellim2022.png" width="100"> | <img src="https://github.com/identicons/paul.png" width="100"> |
 | :--: | :--: |
-| [daniellim2022](https://github.com/daniellim2022) | [이름](https://github.com/깃허브아이디) |
-| 모바일 앱 · 판정 엔진 · 신호 데이터 연동 · 펌웨어 | 하드웨어 조립 · 현장 측정 · 발표 |
+| **임채환 (Dalim)** · 팀장<br>[@daniellim2022](https://github.com/daniellim2022) | **이유찬 (Paul)** · 팀원<br><!-- GitHub 아이디가 생기면 위 이미지 주소와 이 줄을 [@아이디](https://github.com/아이디)로 바꾸세요 --> |
+| 기획 · 모바일 앱 · 판정 엔진 · 신호 데이터 연동 · 펌웨어 | 하드웨어 조립 · 현장 측정 · 발표 |
 
 <br>
 
@@ -238,4 +238,6 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
 ## 📄 라이선스
 
-별도 라이선스를 지정하지 않았습니다. 저작권은 팀에 있으며, 사용·재배포가 필요하면 팀에 문의해 주세요.
+Copyright © 2026 Team 입닫빵 (임채환, 이유찬). All rights reserved.
+
+오픈소스 라이선스를 지정하지 않았습니다. 코드는 열람할 수 있지만, 팀의 허락 없이 복제·수정·재배포·상업적으로 이용할 수 없습니다. 사용이 필요하면 팀에 문의해 주세요.
