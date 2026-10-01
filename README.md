@@ -7,7 +7,8 @@
 ![Flutter](https://img.shields.io/badge/Flutter-3.35-02569B)
 ![Firmware](https://img.shields.io/badge/firmware-ESP32--S3%20v0.2.0-E7352C)
 
-**🔗 배포 페이지 (웹 프로토타입)**: https://waymakerschool.github.io/2026-ClipSense-CloseYourMouthandeatBread/
+**🔗 배포 페이지 (웹 프로토타입)**: https://waymakerschool.github.io/2026-ClipSense-CloseYourMouthandeatBread/  
+**🎬 시연 결과 보고서 (2026-10-01)**: [docs/demo/2026-10-01_시연결과.md](docs/demo/2026-10-01_시연결과.md)
 
 <!-- 대표 이미지나 시연 GIF가 있다면 여기에 넣어주세요. -->
 
@@ -143,7 +144,13 @@ python3 scripts/clip_cam_sim.py --port 8080 &
 python3 scripts/check_clip_cam_contract.py http://127.0.0.1:8080
 #   장애 주입 예: python3 scripts/clip_cam_sim.py --fault freeze
 
-# 5. Python 단위·골든 테스트
+# 5. 시연 재생 — 실제 신호등 프레임으로 앱 판정 전 과정 (보행 안내 → 시간 부족 → 불일치)
+scripts/run_demo_flow.sh                                  # 초록 점등
+scripts/run_demo_flow.sh --scene blink                    # 초록 점멸
+scripts/run_demo_flow.sh --fault freeze --fault-at 8      # 보행 중 카메라 정지
+python3 scripts/probe_signal_api_live.py 1537 ne          # 서울 T-Data 실서버 1회 진단
+
+# 6. Python 단위·골든 테스트
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python scripts/run_unit_tests.py
 ```
@@ -168,9 +175,10 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 | 판정 엔진·앱 | Flutter 자동 테스트 | **578개 통과** (시뮬레이터 연동 2개는 옵트인) |
 | Python 모듈 | 단위·골든 테스트 13종 + 펌웨어 계약 정적 검사 | 통과 |
 | 클립 카메라 통신 규약 | 시뮬레이터 대상 HTTP 계약 검사 | **24/24 통과** |
+| 판정 전 과정 시연 | 실제 신호등 프레임 → 시뮬레이터 → 앱 판정 코드 | 보행·시간 부족·불일치·점멸·카메라 정지 모두 의도대로 ([보고서](docs/demo/2026-10-01_시연결과.md)) |
 | 펌웨어 | CI에서 ESP32-S3 대상 컴파일 | 통과 |
 | 웹 프로토타입 | Vitest | **378개 통과** |
-| 서울 T-Data 연동 | 실제 API 호출로 신호 상태·잔여시간 대조 | 확인 완료 |
+| 서울 T-Data 연동 | 실서버 호출 (2026-10-01 재확인) | 키·응답 형식 정상. **기존 API가 5분 1회·약 30분 지연으로 바뀌어 실시간 안내 불가 → 신규 API 전환 필요** ([보고서](docs/demo/2026-10-01_시연결과.md#시연-4--서울-t-data-실서버-호출)) |
 | 카메라 판독 | 실제 신호등 영상 1편, 그 영상의 모의 변형(야간·역광·흔들림), 합성 영상 | 회귀 테스트 통과 |
 | **클립 카메라 실기기** | 보드 플래시·실촬영·지연·배터리 측정 | **미검증** |
 | **사용자 현장 시험** | 시각장애인 당사자 참여 시험 | **미실시** |
@@ -179,6 +187,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
 ### 알려진 한계
 
+- **2026-10-01 서울 T-Data 정책 변경**: 기존 신호 API가 키당 5분 1회 호출, 약 30분 지연 데이터로 바뀌었습니다. 앱은 오래된 데이터를 안전하게 거부하지만, 실시간 안내를 하려면 신규 API(`v2xSignalPhaseTimingFusionCurrentInfo`) 승인과 전환이 필요합니다.
 - 실시간 보행신호 데이터를 실측 검증한 지역은 현재 서울뿐입니다. 데이터가 없는 교차로에서는 보행 안내를 하지 않습니다.
 - 신호등 자체가 없는 횡단보도(전국 약 54%)는 판독할 신호가 없어 범위 밖입니다.
 - 두 정보원이 같은 시점에 같은 방향으로 틀리는 공통 원인 오류는 원리적으로 완전히 배제할 수 없습니다. 잔여시간 조건과 보수적 신선도 기준으로 위험을 줄입니다.
@@ -216,6 +225,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
 | 단계 | 내용 | 완료 기준 |
 | :-- | :-- | :-- |
+| 0. 실시간 API 전환 | 신규 API 활용신청·엔드포인트 교체·골든 테스트 갱신 | 실서버 데이터 나이 2초 이내, 실시간 보행 안내 재현 |
 | 1. 실기기 검증 | 클립 보드 플래시, 실제 횡단보도 10곳 낮·밤 측정 | 촬영→안내 1초 이내, 배터리 4시간, 틀린 초록 0건 |
 | 2. 데이터 확장 | 행정안전부 전국 통합 신호정보 API의 지역별 제공 범위 실측 | 서울 외 교차로 응답 확인 |
 | 3. 사용자 검증 | 시각장애인복지관 협력, 보행훈련사 동행 현장 시험 (5~10명) | 틀린 초록 0건, 단독 횡단 성공률·자신감 변화 측정 |
