@@ -103,9 +103,9 @@ flowchart LR
 
 ## 👥 팀원
 
-| <img src="https://github.com/daniellim2022.png" width="100"> | <img src="https://github.com/identicons/paul.png" width="100"> |
+| <img src="https://github.com/daniellim2022.png" width="100"> | <img src="https://github.com/paulschoolwms-hue.png" width="100"> |
 | :--: | :--: |
-| **임채환 (Dalim)** · 팀장<br>[@daniellim2022](https://github.com/daniellim2022) | **이유찬 (Paul)** · 팀원<br><!-- GitHub 아이디가 생기면 위 이미지 주소와 이 줄을 [@아이디](https://github.com/아이디)로 바꾸세요 --> |
+| **임채환 (Dalim)** · 팀장<br>[@daniellim2022](https://github.com/daniellim2022) | **이유찬 (Paul)** · 팀원<br>[@paulschoolwms-hue](https://github.com/paulschoolwms-hue) |
 | 기획 · 모바일 앱 · 판정 엔진 · 신호 데이터 연동 · 펌웨어 | 하드웨어 조립 · 현장 측정 · 발표 |
 
 <br>
