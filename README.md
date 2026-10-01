@@ -1,133 +1,140 @@
-# Clip Sense — 보행 신호 이중 검증 안내
+# 🚦 ClipSense
 
-[![CI](https://github.com/daniellim2022/ClipSense/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/daniellim2022/ClipSense/actions/workflows/ci.yml)
+> 실시간 신호 데이터와 옷깃 클립 카메라가 **둘 다 초록일 때만** "지금 건너셔도 됩니다"라고 말해 주는 시각장애인 횡단보도 안전 도우미
 
-시각장애인의 횡단보도 보행을 돕는 안내 시스템. **서울 T-Data 실시간 보행신호 API**와
-**휴대전화 카메라 판정**을 모두 확인해, 둘 다 초록이고 안전한 잔여시간이 있을 때만
-"지금 건너셔도 됩니다"를 음성으로 안내한다. 하나라도 불확실하면 건너라고 하지 않는다.
+**🔗 배포 페이지 (웹 프로토타입)**: https://waymakerschool.github.io/2026-ClipSense-CloseYourMouthandeatBread/
 
-| | |
-|---|---|
-| 판정 규칙 | API·카메라 **둘 다** 초록 ∧ API 잔여 ≥ 7초 ∧ 둘 다 2초 이내 최신 → 보행 허용 |
-| 불확실할 때 | 항상 대기 또는 "확인 불가" (추측하지 않음) |
-| 검출 방식 | OpenCV HSV 색 판정 + 형태 검증 — 딥러닝 없음, 오프라인 동작 |
-| 테스트 | Flutter 578개 · Python 단위 스크립트 13개(judge·클립 계약은 Dart와 같은 골든 JSON) + 펌웨어 계약 검사 + 시뮬레이터 계약 검사 · 합성 영상 파이프라인 3시나리오 (CI 자동 실행) |
-| 검증 자료 | 실제 신호등 영상 기반 회귀 테스트, 야외 조건·인식 거리 실측 스크립트 |
+<!-- 대표 이미지나 시연 GIF가 있다면 여기에 넣어주세요. -->
 
-이 저장소에는 세 실행 경로가 있다.
+> ⚠️ 연구·공모전용 보조 프로토타입입니다. 음향신호기나 사용자의 현장 판단을 대체하지 않습니다.
 
-- `app/`: 서울 T-Data API와 휴대전화 카메라를 엄격 AND로 결합한 Flutter 앱
-  (**이번 제출의 주 플랫폼** — 스마트폰을 임베디드 플랫폼으로 사용)
-- 루트 Python 코드: 웹캠 한 대로 오프라인 시연하는 부스 데모
-- `firmware/`: 옷깃 클립형 카메라(XIAO ESP32S3 Sense) 펌웨어 — 신호등을 촬영해
-  HTTP 스냅샷으로 넘긴다. 판정은 하지 않는다. 사양 확정·구현·컴파일 검증 완료,
-  **실기기 미검증**([firmware/README.md](firmware/README.md)). 이 스냅샷을 받아
-  판정에 넣는 앱 쪽 어댑터(`app/lib/clip/`)는 구현·단위 테스트·펌웨어 시뮬레이터
-  (`scripts/clip_cam_sim.py`, 장애 주입) 끝단 검증 완료, 역시
-  실기기 미검증([클립 카메라 소스](app/README.md#클립-카메라-소스-옷깃-클립-esp32s3-실기기-미검증))
+<br>
 
-> **안전 고지:** 연구·공모전용 보조 프로토타입이다. 공식 음향신호기나 사용자의
-> 현장 판단을 대체하지 않으며, 실제 횡단의 유일한 근거로 사용하면 안 된다.
+## 📖 프로젝트 소개
 
-## 모바일 앱
+- **기간**: 2026.07.13 ~ 진행 중
+- **프로젝트**: 2026 모두의 창업 프로젝트 · 제24회 임베디드SW경진대회 자유공모
+- **소개**: 신호등이 있는 횡단보도 세 곳 중 두 곳에는 음향신호기가 없습니다(2021년 국정감사, 11만 7,484곳 중 3만 9,811곳만 설치). 그곳에서 시각장애인은 신호가 초록인지, 몇 초 남았는지 모른 채 건너야 합니다. ClipSense는 서울시 실시간 보행신호 데이터와 옷깃에 꽂는 카메라를 **함께** 확인해, 두 정보가 모두 초록이고 남은 시간이 충분할 때만 건너라고 안내합니다. 하나라도 불확실하면 **이유와 함께** 기다리라고 말합니다.
 
-앱은 GPS로 지원 교차로를 찾고 사용자가 횡단 방향을 고르면, T-Data 실시간 신호와
-카메라 HSV 판정을 함께 확인한다. 둘 다 초록이고 잔여시간이 7초 이상일 때만 보행을
-허용한다. 잔여시간의 기준은 API이며, 카메라가 읽은 숫자는 그보다 짧을 때 보행을
-막는 거부권으로만 쓴다(API 잔여가 없으면 카메라 숫자가 충분해도 대기). 실행에는
-승인된 T-Data 키가 필요하다. 카메라는 기본이 폰 카메라이고, `CLIP_CAM_HOST`를 주면
-옷깃 클립 카메라의 HTTP 스냅샷을 같은 규칙으로 판정한다(실기기 미검증).
+<br>
+
+## ✨ 주요 기능
+
+| 기능 | 설명 |
+| :-- | :-- |
+| 이중 검증 판정 | 신호 데이터 초록 + 카메라 초록 + 남은 시간 7초 이상 + 두 정보 모두 2초 이내 최신일 때만 "지금 건너셔도 됩니다, 15초 남았습니다" |
+| 이유를 말하는 대기 안내 | "초록불이 곧 끝납니다", "안전하게 건널 시간이 부족합니다", "카메라가 신호등을 찾지 못했습니다" 등 다음 행동을 알려 줌 |
+| 실시간 신호 연동 | 서울 T-Data C-ITS API로 교차로 방향별 보행신호 색과 잔여시간(0.1초 단위)을 받아 통신 지연만큼 다시 계산 |
+| 카메라 신호등 판독 | 딥러닝 없이 HSV 색 검출 + 형태 검증 + 상태 머신으로 빨강·초록·점멸을 오프라인 판독 |
+| 옷깃 클립 카메라 | XIAO ESP32S3 Sense가 신호등을 찍어 Wi-Fi로 전송. 두 손이 자유로움 |
+| 이상 상태 감지 | 오래된 데이터, 멈춘 카메라, 재부팅된 기기, 순서가 뒤바뀐 사진을 잡아내 "확인 불가"로 처리 |
+| GPS 교차로 선택 | 가장 가까운 지원 교차로를 찾고, 방향은 큰 버튼으로 선택(스크린리더 지원) |
+| 펌웨어 시뮬레이터 | 실기기 없이 앱을 끝까지 검증. 사진 멈춤·촬영 실패·재부팅·지연 등 7가지 고장 주입 |
+| 웹 프로토타입 | 브라우저에서 바로 실행. 모의 신호로 정상·지연·정지·순서 역전 등 결함 시나리오를 재생하며 판정 과정을 화면에 보여 줌 |
+
+<br>
+
+## 🛠 기술 스택
+
+- **언어**: Dart, Python, C++ (Arduino), JavaScript
+- **프레임워크 / 라이브러리**: Flutter 3.35, React 19 + Vite (웹), OpenCV, package:image, flutter_tts, geolocator, ESP32 Arduino core 3.3
+- **하드웨어**: Seeed XIAO ESP32S3 Sense (OV2640 카메라)
+- **데이터**: 서울 T-Data 신호제어기 신호 잔여시간 정보서비스(C-ITS)
+- **도구**: Git, GitHub Actions(CI), GitHub Pages(배포), arduino-cli, VS Code
+
+<br>
+
+## 👥 팀원
+
+| <img src="https://github.com/daniellim2022.png" width="100"> | <img src="https://github.com/깃허브아이디.png" width="100"> |
+| :--: | :--: |
+| [daniellim2022](https://github.com/daniellim2022) | [이름](https://github.com/깃허브아이디) |
+| 앱·판정 엔진·신호 데이터 연동·카메라 프로그램 | 하드웨어 조립·현장 측정·발표 |
+
+<br>
+
+## ▶️ 실행 방법
 
 ```bash
+# 1. 저장소 받기
+git clone https://github.com/WayMakerSchool/2026-ClipSense-CloseYourMouthandeatBread.git
+cd 2026-ClipSense-CloseYourMouthandeatBread
+
+# 2. 웹 프로토타입 (키 없이 모의 신호로 실행)
+cd web
+npm install
+npm run dev          # http://localhost:5173
+npm test
+cd ..
+
+# 3. 모바일 앱 (T-Data API 키 필요, 키는 코드에 넣지 말고 실행할 때 주입)
 cd app
 flutter pub get
-flutter analyze
 flutter test
 flutter run --dart-define=TDATA_KEY='발급받은_API_키'
-```
 
-카메라 조준, 접근성, 실기기 출고 점검과 구조 설명은 [모바일 앱 안내](app/README.md)를
-참고한다. 운영 매핑의 청계2가·정동·국일관 좌표와 이름은 서울 T-Data
-[`교차로 MAP 정보`](https://t-data.seoul.go.kr/dataprovide/trafficdataviewfile.do?data_id=10144)
-2024-11-14 배포 CSV로 대조했다.
+# 3-1. 옷깃 클립 카메라를 쓸 때 (같은 Wi-Fi의 카메라 주소)
+flutter run --dart-define=TDATA_KEY='...' --dart-define=CLIP_CAM_HOST=192.168.0.42
 
-## Python 부스 데모
+# 4. 실기기 없이 펌웨어 시뮬레이터로 확인
+cd ..
+python3 scripts/clip_cam_sim.py              # 가짜 클립 카메라 실행
+python3 scripts/check_clip_cam_contract.py   # 카메라 통신 규칙 24개 검사
 
-시각장애인용 보행 신호 안내 기기의 부스 시연 데모. 웹캠이 보행 신호등을
-읽어 한국어 음성으로 안내한다("지금 건너셔도 됩니다" / "빨간불입니다").
-딥러닝 없이 OpenCV 색상(HSV) 검출만 사용하고, 음성은 사전 생성 파일을
-재생하므로 런타임에 인터넷이 필요 없다.
-
-## 부스 당일 세팅 (5단계)
-
-1. 전원 — 노트북을 켜고 옆 모니터에 횡단보도 영상을 반복 재생한다.
-2. 이어폰을 노트북에 연결한다.
-3. 터미널에서 `./run_demo.sh` 실행 (Windows: `run_demo.bat`).
-4. 뜬 창에서 **신호등 불빛 영역**을 마우스로 드래그하고 Enter (등 크기의 2~3배 여유).
-5. 빨강/초록 안내가 나오면 끝. 종료는 창에서 `q` 또는 `ESC`.
-
-> ROI는 한 번 지정하면 저장된다. 다음부터는 3번만 하면 된다.
-> 카메라나 모니터 위치가 바뀌었으면 `./run_demo.sh --reselect-roi`로 다시 잡는다.
-> 기기별 ROI는 Git에서 제외되는 `config.local.json`에 저장되고, 추적 중인
-> `config.json`의 공용 HSV 임계값은 실행 중 자동 변경되지 않는다.
-
-## 동작 원리
-
-프레임 → ROI 크롭 → HSV 빨강/초록 마스킹 → 원형 blob 검출 → 상태 머신
-(디바운스 + 점멸 감지) → 상태가 바뀔 때만 음성 1회. 디버그 창에 원본·마스크·
-현재 상태·신뢰도가 표시되어, 그 자체가 "AI가 판단하는 과정"의 시각 자료가 된다.
-
-상태: **빨간불 / 초록불 / 초록 점멸(곧 끝남) / 확인 불가**. 마지막 "확인 불가"가
-이 데모의 핵심이다 — 신뢰도가 낮으면(가림·급격한 밝기 변화·불빛이 ROI를 꽉 채움)
-틀린 안내 대신 "신호를 확인할 수 없습니다"라고 정직하게 알린다.
-
-## 문제 해결
-
-| 증상 | 원인·조치 |
-|---|---|
-| 창이 안 뜨고 카메라 권한 오류 | 시스템 설정 > 개인정보 보호 및 보안 > 카메라에서 터미널 허용 |
-| 계속 "확인 불가"만 나옴 | ROI가 신호등을 못 잡음 → `q`로 끄고 `--reselect-roi`로 다시 지정 |
-| 콘솔에 "불빛이 ROI 대부분을 덮음" 경고 | ROI가 등에 너무 타이트함 → `r` 키로 등 크기의 2~3배로 다시 드래그 |
-| 신호가 있는데 색 판정이 틀림 | 조명이 다름 → `config.json`의 `hsv` 임계값 조정 (아래 튜닝 참고) |
-| 프로그램이 자동 재시작을 반복 | 카메라 연결/슬립 복귀 문제 → 케이블 재연결. 설정 오류면 자동으로 멈춘다 |
-| 소리가 안 남 | 이어폰 연결·볼륨 확인. 음성 초기화 실패 시 화면에 "VOICE OFF!" 표시되며 무음으로 계속 동작 |
-
-## HSV 튜닝 (색 판정이 틀릴 때)
-
-디버그 창의 빨강/초록 마스크 %와 상태를 보며 `config.json`을 조정한다:
-- 신호는 켜졌는데 마스크가 안 잡히면: 해당 색의 `lower` 채도(S)·명도(V) 하한을 낮춘다.
-- 엉뚱한 것이 잡히면: 하한을 높이거나 `min_area_ratio`를 키운다.
-- 값을 바꾸면 저장 후 재실행. 이 저장소의 자동 테스트(`scripts/`)로 회귀를 확인할 수 있다.
-
-## 잔여시간 숫자 읽기 (선택 기능, 기본 꺼짐)
-
-붉은 7-세그먼트 잔여시간 표시기가 있으면 읽을 수 있다. 실행 중 `d` 키로 숫자
-영역을 드래그하면 켜진다. **틀린 값은 절대 내지 않고, 애매하면 판독을 포기한다**
-(디버그 창 TIME에 `--` 표시). 참조 영상에서 안정적이지 않으면 그냥 안 쓰면
-되고, 나머지 데모는 영향받지 않는다. 음성 안내와는 연동하지 않는다.
-
-## 심사 Q&A 대비
-
-- **"오인식하면 위험하지 않나요?"** → 확신이 없으면 틀린 안내 대신 "확인 불가"로
-  물러난다. 웹캠을 손으로 가려 보여주면 3초 내 "확인 불가"가 나오고, 손을 떼면
-  현재 신호를 다시 안내한다.
-- **"딥러닝인가요?"** → 아니다. 보행 신호등은 색·형태가 표준화되어 있어 색상 필터
-  (HSV)만으로 충분하고, 그래서 저사양·오프라인에서도 즉시 동작한다.
-
-## 개발자용
-
-```bash
+# 5. Python 부스 데모 (웹캠 한 대로 오프라인 시연)
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-.venv/bin/python scripts/make_test_video.py   # 합성 테스트 영상 생성
-.venv/bin/python scripts/run_unit_tests.py    # API·판단·비전·음성 단위/강건성 검증
-.venv/bin/python scripts/run_pipeline_test.py # 파이프라인 자동 검증
+./run_demo.sh                    # Windows: run_demo.bat
+.venv/bin/python scripts/run_unit_tests.py
 ```
 
-검증된 한국어 WAV 4개는 오프라인 시연을 위해 저장소에 포함한다. 음성을 다시 만들 때만
-`.venv/bin/pip install -r requirements-dev.txt` 후
-`.venv/bin/python scripts/generate_voice.py`를 실행한다(인터넷·ffmpeg 또는 afconvert 필요).
+더 자세한 사용법과 문제 해결은 [상세안내.md](상세안내.md), 펌웨어 빌드와 업로드는 [firmware/README.md](firmware/README.md), 앱의 카메라 조준·접근성은 [app/README.md](app/README.md)를 참고해 주세요.
 
-주요 옵션: `--video <경로>`(영상 입력) / `--camera N`(웹캠) / `--reselect-roi` /
-`--digit-roi x,y,w,h`(숫자 영역) / `--headless`(창 없음) / `--mute`(무음).
-파일 구조: `main.py`(루프) · `detector.py`(색 검출+상태머신) · `voice.py`(재생) ·
-`digits.py`(숫자, 선택) · `config.json`(임계값) · `scripts/`(음성 생성·테스트).
+<br>
+
+## 📁 폴더 구조
+
+```
+.
+├── app/                      # Flutter 모바일 앱
+│   ├── lib/
+│   │   ├── app/              # 화면, 판정 루프(GuidanceController), GPS 교차로 선택
+│   │   ├── signals/          # T-Data API, 이중 검증 판정(judge)
+│   │   ├── vision/           # 색 검출, 상태 머신, 잔여시간 숫자 판독
+│   │   ├── camera/           # 폰 카메라 입력
+│   │   ├── clip/             # 옷깃 클립 카메라 연동(스냅샷·신선도 검사)
+│   │   └── feedback/         # 음성(TTS)·진동 안내
+│   └── test/                 # 자동 테스트 578개 + 골든 테스트 데이터
+├── web/                      # 웹 프로토타입 (React + Vite, GitHub Pages 배포)
+├── firmware/clipsense_cam/   # XIAO ESP32S3 클립 카메라 펌웨어 (Arduino)
+├── scripts/                  # 시뮬레이터, 계약 검사, 측정·테스트 스크립트
+├── main.py, detector.py ...  # Python 부스 데모와 판정 모듈
+├── assets/voice/             # 오프라인 안내 음성
+├── .github/workflows/ci.yml  # Python·Flutter·펌웨어 자동 검증
+├── 상세안내.md               # 부스 데모 세팅, 문제 해결, 심사 Q&A
+└── README.md
+```
+
+<br>
+
+## ✅ 현재 상태
+
+| 구분 | 상태 |
+| :-- | :-- |
+| 웹 프로토타입 | GitHub Pages 배포, 자동 테스트 378개 통과, 모의 신호 기준 |
+| 모바일 앱, 판정 엔진 | 구현 완료, 자동 테스트 578개 통과 |
+| 서울 T-Data 연동 | 실제 API 호출로 신호색·잔여시간 확인 |
+| 카메라 판독 | 실제 신호등 영상 1편과 변형 영상, 합성 영상으로 검증 |
+| 클립 카메라 펌웨어 | 구현·컴파일 완료, **실기기 미검증** |
+| 사용자 현장 테스트 | **미실시** (다음 단계) |
+
+<br>
+
+## 🤝 협업 규칙
+
+- **브랜치**
+  - `develop`: 개발용 기본 브랜치. 모든 작업은 여기서 시작해요.
+  - `feat/기능이름`, `fix/버그이름`: `develop`에서 만들어서 작업하고, PR로 `develop`에 합쳐요.
+  - `main`: 발표나 배포할 때만 `develop`을 합쳐요.
+- **커밋 메시지**: `feat: 로그인 기능 추가`, `fix: 버튼 클릭 오류 수정`, `docs: README 수정`
+- **비밀값**: T-Data API 키, 클립 카메라 토큰, `firmware/secrets.h`는 절대 커밋하지 않아요. 실행할 때 `--dart-define`이나 환경변수로 넣어요.
+- **안전 규칙**: 판정 규칙(`judge`)을 바꾸는 PR은 골든 테스트(`judge_cases.json`)가 통과해야 합쳐요.

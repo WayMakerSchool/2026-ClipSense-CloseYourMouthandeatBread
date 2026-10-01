@@ -52,3 +52,8 @@ app/android/.gradle/
 firmware/clipsense_cam/secrets.h
 firmware/.pio/
 firmware/build/
+
+# web prototype
+web/node_modules/
+web/dist/
+web/.env.local
