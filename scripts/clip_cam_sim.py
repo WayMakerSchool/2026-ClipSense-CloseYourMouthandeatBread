@@ -231,6 +231,70 @@ class TimedFrameSource(FrameSource):
         return self._frames[int(elapsed_s * self._fps) % len(self._frames)]
 
 
+class WebcamFrameSource(FrameSource):
+    """--webcam 용: 노트북·USB 웹캠을 실시간으로 읽어 펌웨어 기본 프로필(중앙 4:3 →
+    320x240, JPEG q80)로 매 촬영마다 새로 인코딩한다. cv2 필요.
+
+    카메라 센서가 고장 난 보드 대신 쓰는 시연용 입력이다. 통신 규약·헤더·장애 주입은
+    다른 입력과 같고, 판정은 앱이 한다. OV2640 출력이 아니므로 화질·노출은 실기기와 다르다.
+    """
+
+    def __init__(self, index: int = 0, first_frame_timeout_s: float = 8.0) -> None:
+        try:
+            import cv2  # noqa: PLC0415 — 선택 의존성
+        except ImportError as e:
+            raise RuntimeError("cv2 가 없다 — --webcam 은 opencv-python 이 있을 때만 쓸 수 있다") from e
+        self._cv2 = cv2
+        self._cap = cv2.VideoCapture(index)
+        if not self._cap.isOpened():
+            raise ValueError(f"웹캠 {index} 을(를) 열 수 없다 (카메라 권한 확인)")
+        self._latest = None
+        self._lock = threading.Lock()
+        self._stop = False
+        threading.Thread(target=self._reader, daemon=True).start()
+        deadline = time.monotonic() + first_frame_timeout_s
+        while self._latest is None and time.monotonic() < deadline:
+            time.sleep(0.05)
+        if self._latest is None:
+            raise ValueError(f"웹캠 {index} 에서 프레임을 받지 못했다")
+        super().__init__([self._encode(self._latest)], hold_frames=1)
+
+    def _reader(self) -> None:
+        while not self._stop:
+            ok, frame = self._cap.read()
+            if ok:
+                with self._lock:
+                    self._latest = frame
+            else:
+                time.sleep(0.01)
+
+    def _encode(self, frame) -> bytes:  # noqa: ANN001
+        cv2 = self._cv2
+        h, w = frame.shape[:2]
+        target_w = h * 4 // 3
+        if target_w <= w:
+            x = (w - target_w) // 2
+            four_three = frame[:, x : x + target_w]
+        else:
+            target_h = w * 3 // 4
+            y = (h - target_h) // 2
+            four_three = frame[y : y + target_h, :]
+        small = cv2.resize(four_three, (320, 240), interpolation=cv2.INTER_AREA)
+        ok, buf = cv2.imencode(".jpg", small, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+        if not ok:
+            raise RuntimeError("JPEG 인코딩 실패")
+        return buf.tobytes()
+
+    def next(self) -> bytes:
+        with self._lock:
+            frame = self._latest
+        return self._encode(frame)
+
+    def close(self) -> None:
+        self._stop = True
+        self._cap.release()
+
+
 # ── 카메라 상태기계(CameraService 의 짝) ───────────────────────────────────
 
 
@@ -684,6 +748,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
                    help=f"프레임당 연속 제공 횟수(기본 {DEFAULT_HOLD_FRAMES} ≈ 250ms 폴링에서 1Hz 점멸)")
     p.add_argument("--video", metavar="PATH", help="cv2 가 있을 때만. 중앙 4:3 → 320x240, 실시간 반복")
     p.add_argument("--max-frames", type=int, default=600, help="--video 에서 미리 인코딩할 최대 프레임 수")
+    p.add_argument("--webcam", type=int, metavar="INDEX",
+                   help="cv2 가 있을 때만. 웹캠을 실시간으로 중앙 4:3 → 320x240 JPEG (카메라 고장 보드 대체 시연)")
     p.add_argument("--fault", choices=[m for m in FAULT_MODES if m != "reboot"], default="none",
                    help="시작 시 장애 모드(reboot 는 실행 중 POST /__sim/fault 로만)")
     p.add_argument("--hold-ms", type=int, default=DEFAULT_HOLD_MS,
@@ -701,7 +767,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
     try:
         frames: FrameSource
-        if args.video:
+        if args.webcam is not None:
+            frames = WebcamFrameSource(args.webcam)
+        elif args.video:
             video_frames, fps = load_video_frames(Path(args.video), args.max_frames)
             frames = TimedFrameSource(video_frames, fps)
         else:
