@@ -8,7 +8,8 @@
 ![Firmware](https://img.shields.io/badge/firmware-ESP32--S3%20v0.2.0-E7352C)
 
 **🔗 배포 페이지 (웹 프로토타입)**: https://waymakerschool.github.io/2026-ClipSense-CloseYourMouthandeatBread/  
-**🎬 시연 결과 보고서 (2026-10-01)**: [docs/demo/2026-10-01_시연결과.md](docs/demo/2026-10-01_시연결과.md)
+**🎬 시연 결과 보고서 (2026-10-01)**: [docs/demo/2026-10-01_시연결과.md](docs/demo/2026-10-01_시연결과.md)  
+**🛠 시연 운영 가이드 (클립 카메라 고장 시)**: [docs/demo/카메라고장_시연가이드.md](docs/demo/카메라고장_시연가이드.md)
 
 <!-- 대표 이미지나 시연 GIF가 있다면 여기에 넣어주세요. -->
 
@@ -148,6 +149,7 @@ python3 scripts/check_clip_cam_contract.py http://127.0.0.1:8080
 scripts/run_demo_flow.sh                                  # 초록 점등
 scripts/run_demo_flow.sh --scene blink                    # 초록 점멸
 scripts/run_demo_flow.sh --fault freeze --fault-at 8      # 보행 중 카메라 정지
+scripts/run_demo_flow.sh --webcam 0                       # 노트북 카메라를 클립 카메라 대신 (라이브)
 python3 scripts/probe_signal_api_live.py 1537 ne          # 서울 T-Data 실서버 1회 진단
 
 # 6. Python 단위·골든 테스트
@@ -164,6 +166,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 | `TDATA_KEY` | 서울 T-Data API 키 | `--dart-define` (저장소에 저장 금지) |
 | `CLIP_CAM_HOST` | 클립 카메라 주소 | `--dart-define`, 비우면 휴대폰 카메라 사용 |
 | `CLIP_CAM_TOKEN` / `CLIP_DEVICE_TOKEN` | 앱·기기 간 접속 토큰 | `--dart-define` / 환경변수 |
+| `DEMO_SIGNAL` | 시연용 신호 데이터 (`cycle`: 초록 30초 → 빨강 20초, 화면에 "시연 데이터" 표시) | `--dart-define`, 기본 꺼짐 |
 | `firmware/clipsense_cam/secrets.h` | Wi-Fi 정보·기기 토큰 | `secrets.example.h` 복사 후 작성, Git 제외 |
 
 <br>
