@@ -10,7 +10,8 @@
 **🔗 배포 페이지 (웹 프로토타입)**: https://waymakerschool.github.io/2026-ClipSense-CloseYourMouthandeatBread/  
 **🎬 시연 결과 보고서 (2026-10-01)**: [docs/demo/2026-10-01_시연결과.md](docs/demo/2026-10-01_시연결과.md)  
 **🛠 시연 운영 가이드 (클립 카메라 고장 시)**: [docs/demo/카메라고장_시연가이드.md](docs/demo/카메라고장_시연가이드.md)  
-**🔧 하드웨어 제출서**: [docs/hardware/하드웨어_제출서.md](docs/hardware/하드웨어_제출서.md)
+**🔧 하드웨어 제출서**: [docs/hardware/하드웨어_제출서.md](docs/hardware/하드웨어_제출서.md)  
+**📱 안드로이드 시연 앱 (APK)**: https://waymakerschool.github.io/2026-ClipSense-CloseYourMouthandeatBread/download/
 
 <!-- 대표 이미지나 시연 GIF가 있다면 여기에 넣어주세요. -->
 
