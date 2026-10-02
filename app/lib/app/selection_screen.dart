@@ -24,12 +24,16 @@ class SelectionScreen extends StatefulWidget {
   final LocationService location;
   final FeedbackController Function() feedbackFactory;
   final VisionSource Function()? visionFactory;
+
+  /// 신호 판독 공급자(시연 데이터 등). null이면 실제 T-Data API.
+  final FetchReading? Function()? fetchFactory;
   final List<Intersection> intersections;
   const SelectionScreen({
     super.key,
     required this.location,
     required this.feedbackFactory,
     this.visionFactory,
+    this.fetchFactory,
     this.intersections = kIntersections,
   });
 
@@ -89,6 +93,7 @@ class _SelectionScreenState extends State<SelectionScreen> {
       itstId: it.itstId,
       direction: dir.code,
       vision: widget.visionFactory?.call() ?? CameraVisionSource(),
+      fetch: widget.fetchFactory?.call(),
     );
     Navigator.of(context)
         .push(

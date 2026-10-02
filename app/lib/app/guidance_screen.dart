@@ -19,6 +19,7 @@ import '../signals/judge.dart';
 import '../signals/signal_reading.dart';
 import 'config.dart';
 import 'guidance_controller.dart';
+import 'demo_signal.dart';
 
 /// 진단 스트립이 차지할 수 있는 최대 높이(화면 높이 비율).
 const double _kDebugStripMaxFrac = 0.35;
@@ -107,6 +108,24 @@ class _GuidanceScreenState extends State<GuidanceScreen>
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  if (controller.lastApiReading?.raw == kDemoSignalRaw)
+                    Container(
+                      key: const Key('demoSignalBanner'),
+                      margin: const EdgeInsets.only(bottom: 24),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      color: const Color(0xFFFFD60A),
+                      child: const Text(
+                        '시연 데이터 · 실제 신호 아님',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.black,
+                        ),
+                      ),
+                    ),
                   Semantics(
                     excludeSemantics: true,
                     child: v.icon != null

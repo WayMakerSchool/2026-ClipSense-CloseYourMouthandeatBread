@@ -8,6 +8,7 @@ import 'package:clip_sense/feedback/haptic_output.dart';
 import 'package:clip_sense/feedback/feedback_controller.dart';
 import 'package:clip_sense/app/guidance_controller.dart';
 import 'package:clip_sense/app/guidance_screen.dart';
+import 'package:clip_sense/app/demo_signal.dart';
 import 'package:clip_sense/camera/camera_vision_source.dart';
 
 class FakeSpeech implements SpeechOutput {
@@ -101,6 +102,35 @@ void main() {
     await tester.pump();
     expect(find.textContaining('기다리세요'), findsOneWidget);
     expect(find.textContaining('빨간불'), findsOneWidget);
+    c.dispose();
+  });
+
+  testWidgets('시연 데이터로 판정하면 "시연 데이터" 배너를 띄운다', (tester) async {
+    final c = makeController(
+      const SignalReading(
+        SignalColor.green,
+        20,
+        SignalSource.api,
+        freshMs: 0,
+        raw: kDemoSignalRaw,
+      ),
+    );
+    await tester.pumpWidget(MaterialApp(home: GuidanceScreen(controller: c)));
+    await c.tickOnce();
+    await tester.pump();
+    expect(find.byKey(const Key('demoSignalBanner')), findsOneWidget);
+    expect(find.text('시연 데이터 · 실제 신호 아님'), findsOneWidget);
+    c.dispose();
+  });
+
+  testWidgets('실제 API 판독에는 시연 배너가 없다', (tester) async {
+    final c = makeController(
+      const SignalReading(SignalColor.green, 20, SignalSource.api, freshMs: 0),
+    );
+    await tester.pumpWidget(MaterialApp(home: GuidanceScreen(controller: c)));
+    await c.tickOnce();
+    await tester.pump();
+    expect(find.byKey(const Key('demoSignalBanner')), findsNothing);
     c.dispose();
   });
 

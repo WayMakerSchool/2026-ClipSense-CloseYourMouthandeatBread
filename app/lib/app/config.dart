@@ -74,3 +74,8 @@ const Duration kClipPollInterval = Duration(milliseconds: 250);
 
 /// 스냅샷 한 요청의 제한 시간(§11.3 초기값). 넘기면 연결을 끊고 unknown.
 const Duration kClipRequestTimeout = Duration(milliseconds: 800);
+
+/// 시연용 신호 데이터 모드. 비어 있으면(기본) 실제 T-Data API를 쓴다.
+/// `--dart-define=DEMO_SIGNAL=cycle`이면 초록 30초 → 빨강 20초 가정값을 쓰고 화면에
+/// "시연 데이터"를 표시한다(demo_signal.dart). 실사용 빌드에는 넣지 않는다.
+const String kDemoSignal = String.fromEnvironment('DEMO_SIGNAL');
