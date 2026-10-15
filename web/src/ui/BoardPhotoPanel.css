@@ -1,0 +1,17 @@
+.board-photo-panel { margin: 16px 20px; padding: 20px; border: 2px solid #72879b; border-radius: 12px; background: #12161c; }
+.board-photo-panel h2 { margin: 0 0 10px; font-size: 26px; }
+.board-photo-panel p { line-height: 1.6; color: #c7d0da; }
+.board-photo-form { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
+.board-photo-form label { display: grid; gap: 8px; flex: 1 1 240px; font-size: 18px; font-weight: 700; min-width: 0; }
+.board-photo-form input { width: 100%; min-height: 48px; padding: 10px; border: 1px solid #72879b; border-radius: 6px; color: #fff; background: #0a0d11; font: inherit; }
+.board-photo-form button { min-height: 48px; padding: 10px 16px; border: 1px solid #72879b; border-radius: 6px; color: #fff; background: #244b8c; font: inherit; font-weight: 700; cursor: pointer; }
+.board-photo-form button:disabled { opacity: .5; cursor: default; }
+.board-photo-form :focus-visible { outline: 3px solid #ffd600; outline-offset: 3px; }
+.board-photo-panel .board-photo-status { font-size: 22px; font-weight: 700; }
+.board-photo-panel .board-photo-error { color: #ffb4ab; }
+.board-photo-meta { display: flex; gap: 16px 40px; flex-wrap: wrap; }
+.board-photo-meta dt { font-size: 22px; }
+.board-photo-meta dd { margin: 4px 0 0; font-size: clamp(28px, 5vw, 44px); font-weight: 900; overflow-wrap: anywhere; }
+.board-photo-laptop { color: #ffd600; }
+.board-photo-image { display: block; width: 100%; max-height: 65vh; object-fit: contain; background: #000; border-radius: 8px; }
+.board-photo-empty { padding: 24px; border: 1px dashed #72879b; text-align: center; }
