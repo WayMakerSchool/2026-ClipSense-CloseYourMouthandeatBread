@@ -118,7 +118,9 @@ class _GuidanceScreenState extends State<GuidanceScreen>
                       ),
                       color: const Color(0xFFFFD60A),
                       child: const Text(
-                        '시연 데이터 · 실제 신호 아님',
+                        kLooseDetect
+                            ? '시연 데이터 · 실제 신호 아님 · 완화 판정'
+                            : '시연 데이터 · 실제 신호 아님',
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w800,

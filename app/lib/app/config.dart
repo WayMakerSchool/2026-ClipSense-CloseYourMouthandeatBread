@@ -77,5 +77,10 @@ const Duration kClipRequestTimeout = Duration(milliseconds: 800);
 
 /// 시연용 신호 데이터 모드. 비어 있으면(기본) 실제 T-Data API를 쓴다.
 /// `--dart-define=DEMO_SIGNAL=cycle`이면 초록 30초 → 빨강 20초 가정값을 쓰고 화면에
-/// "시연 데이터"를 표시한다(demo_signal.dart). 실사용 빌드에는 넣지 않는다.
+/// "시연 데이터"를 표시한다(demo_signal.dart). `DEMO_SIGNAL=color`는 색만 주고 남은 시간은
+/// 비운다(잔여 초를 만들지 않는 시험용). 실사용 빌드에는 넣지 않는다.
 const String kDemoSignal = String.fromEnvironment('DEMO_SIGNAL');
+
+/// 시험용 완화 판정(detector_config.dart의 [DetectorConfig.loosened]). 기본 false —
+/// 실사용 빌드에는 넣지 않는다. 켜지면 시연 배너에 "완화 판정"이 함께 표시된다.
+const bool kLooseDetect = bool.fromEnvironment('LOOSE_DETECT');

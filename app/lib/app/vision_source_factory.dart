@@ -7,11 +7,19 @@ library;
 
 import '../camera/camera_vision_source.dart';
 import '../clip/clip_vision_source.dart';
+import '../vision/detector_config.dart';
 
 VisionSource defaultVisionSource({
   required String host,
   required String token,
+  bool loose = false,
 }) {
-  if (host.trim().isEmpty) return CameraVisionSource();
-  return ClipVisionSource(baseUrl: clipBaseUri(host), token: token);
+  const base = DetectorConfig.defaults();
+  final config = loose ? base.loosened() : base;
+  if (host.trim().isEmpty) return CameraVisionSource(config: config);
+  return ClipVisionSource(
+    baseUrl: clipBaseUri(host),
+    token: token,
+    config: config,
+  );
 }

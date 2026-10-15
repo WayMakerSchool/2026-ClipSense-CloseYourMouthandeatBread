@@ -101,4 +101,39 @@ class DetectorConfig {
       maxCellAspect = 0.82,
       stableWindow = 5,
       stableVotes = 3;
+
+  /// 시험용 완화 판정(`--dart-define=LOOSE_DETECT=true`). 기본값은 바꾸지 않는다.
+  ///
+  /// 실측(2026-10-12, 맥북 웹캠 320x240 앞에 폰 화면의 초록불을 댐): 초록 blob이
+  /// ROI의 67~97%를 덮어 [maxAreaRatio] 0.6에 걸려 모두 버려졌고(blob_too_large),
+  /// 폰을 움직일 때마다 밝기 급변(brightness_jump)으로도 버려졌다. 시험에서는
+  /// 큰 blob을 받아들이고 밝기 급변 거부를 끄며, 연속 프레임 요구를 8→4로 줄인다.
+  /// 색 범위(HSV)와 판정 정책(엄격 AND)은 그대로다 — 실사용 빌드에 넣지 않는다.
+  DetectorConfig loosened() => DetectorConfig(
+    hsvRed: hsvRed,
+    hsvGreen: hsvGreen,
+    digitRedHsv: digitRedHsv,
+    minAreaRatio: minAreaRatio,
+    maxAreaRatio: 1.01,
+    minCircularity: minCircularity,
+    minAspectRatio: minAspectRatio,
+    maxAspectRatio: maxAspectRatio,
+    minBrightness: minBrightness,
+    brightnessJump: 256,
+    brightnessEmaAlpha: brightnessEmaAlpha,
+    validExitFactor: validExitFactor,
+    morphKernel: morphKernel,
+    debounceFrames: 4,
+    blinkWindowSeconds: blinkWindowSeconds,
+    blinkMinToggles: blinkMinToggles,
+    blinkMinSegmentSeconds: blinkMinSegmentSeconds,
+    unknownAfterSeconds: unknownAfterSeconds,
+    segOnRatio: segOnRatio,
+    segOffRatio: segOffRatio,
+    minCellFill: minCellFill,
+    maxCellFill: maxCellFill,
+    maxCellAspect: maxCellAspect,
+    stableWindow: stableWindow,
+    stableVotes: stableVotes,
+  );
 }

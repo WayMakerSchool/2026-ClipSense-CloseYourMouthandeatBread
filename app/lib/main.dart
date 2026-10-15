@@ -29,8 +29,11 @@ class ClipSenseApp extends StatelessWidget {
         feedbackFactory: () =>
             FeedbackController(FlutterTtsSpeech(), VibrationHaptic()),
         // CLIP_CAM_HOST 가 주어지면 옷깃 클립 카메라(HTTP 스냅샷), 아니면 폰 카메라.
-        visionFactory: () =>
-            defaultVisionSource(host: kClipCamHost, token: kClipCamToken),
+        visionFactory: () => defaultVisionSource(
+          host: kClipCamHost,
+          token: kClipCamToken,
+          loose: kLooseDetect,
+        ),
         // DEMO_SIGNAL=cycle 이면 시연용 가정 신호(화면에 표시), 아니면 실제 API.
         fetchFactory: () => demoSignalFetch(kDemoSignal),
       ),

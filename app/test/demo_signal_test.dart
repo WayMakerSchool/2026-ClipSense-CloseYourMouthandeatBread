@@ -1,5 +1,6 @@
 import 'package:clip_sense/app/config.dart';
 import 'package:clip_sense/app/demo_signal.dart';
+import 'package:clip_sense/signals/judge.dart';
 import 'package:clip_sense/signals/signal_reading.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -36,5 +37,31 @@ void main() {
     final again = await at(50000);
     expect(again.color, SignalColor.green);
     expect(again.remainSec, 30.0);
+  });
+
+  test('color: 같은 주기에서 색만 준다 — 잔여 초를 만들지 않는다', () async {
+    var t = 1000000;
+    final fetch = demoSignalFetch('color', clock: () => t)!;
+    Future<SignalReading> at(int ms) {
+      t = 1000000 + ms;
+      return fetch('1537', 'ne', '', nowMs: t);
+    }
+
+    final g = await at(0);
+    expect(g.color, SignalColor.green);
+    expect(g.remainSec, isNull);
+    expect(g.raw, kDemoSignalRaw);
+    expect((await at(29900)).remainSec, isNull);
+    expect((await at(30000)).color, SignalColor.red);
+    expect((await at(50000)).color, SignalColor.green);
+  });
+
+  test('color + 카메라 초록이면 걷지 않고 "남은 시간 확인 불가"로 대기', () async {
+    final fetch = demoSignalFetch('color', clock: () => 0)!;
+    final api = await fetch('1537', 'ne', '', nowMs: 0);
+    const vision = SignalReading(SignalColor.green, null, SignalSource.vision);
+    final r = evaluate(api, vision);
+    expect(r.decision, Decision.wait);
+    expect(r.reason, DecisionReason.remainingUnavailable);
   });
 }
