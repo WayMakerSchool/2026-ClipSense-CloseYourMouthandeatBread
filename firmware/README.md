@@ -274,3 +274,15 @@ firmware/
     ├── clip_network.h/.cpp   Wi-Fi 상태기계, mDNS, 복구 AP (ESP32 코어의 NetworkManager 와 이름 충돌 회피)
     └── http_api.h/.cpp       /health · /capture · 토큰 인증 · CORS
 ```
+
+## 노트북 촬영 중계 (0.3.0, 2026-10-15)
+
+클립 카메라를 쓸 수 없을 때(확장 보드 불량 등) 노트북 카메라 사진을 보드로 보내 통신 경로를 검증한다.
+
+- `POST /frame` (multipart JPEG, `X-Clip-Device-Token`) — 카메라가 초기화되지 않았을 때만 `/capture`로 나간다
+- `/capture` 응답에 `X-Frame-Source: laptop-upload`, `X-Camera-Sensor: LAPTOP` 표시 — 클립 촬영과 구별
+- 5초보다 오래된 업로드 프레임은 내주지 않음(`503 no_recent_frame`)
+- `GET /relay` — 중계 통계 (`/health` 계약은 그대로)
+- 노트북 쪽 도구: `scripts/laptop_frame_relay.py`
+- 카메라 진단 스케치: `firmware/tools/camera_probe` (XCLK·SDA/SCL·I2C 주소 스캔)
+- 끄려면 `config.h`의 `CLIP_ENABLE_LAPTOP_RELAY 0`

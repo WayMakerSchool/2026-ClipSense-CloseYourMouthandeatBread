@@ -7,7 +7,7 @@
 #pragma once
 
 // ── 펌웨어 식별 ────────────────────────────────────────────────────────────
-#define CLIP_FIRMWARE_VERSION "0.2.0"
+#define CLIP_FIRMWARE_VERSION "0.3.0"
 #define CLIP_API_SCHEMA_VERSION "clipsense-camera-api-v1"
 
 // 기기 식별자. 여러 대를 같은 망에 둘 때 기기마다 다르게 준다.
@@ -44,6 +44,18 @@
 
 // 기기 토큰을 실을 요청 헤더 이름(§10.1).
 #define CLIP_TOKEN_HEADER "X-Clip-Device-Token"
+
+// ── 노트북 촬영 중계 (2026-10-15) ─────────────────────────────────────────
+// 클립 카메라를 쓸 수 없을 때(확장 보드 불량 등) 노트북 카메라가 찍은 JPEG을
+// POST /frame 으로 보드에 올리고, 앱·웹은 평소처럼 보드의 /capture 에서 받는다.
+// 이 프레임은 클립 촬영이 아니므로 응답마다 X-Frame-Source: laptop-upload,
+// X-Camera-Sensor: LAPTOP 을 붙여 구별한다. 카메라가 정상이면 항상 카메라가 우선이다.
+#define CLIP_ENABLE_LAPTOP_RELAY 1
+// 받아 둘 JPEG 최대 크기(PSRAM). QVGA JPEG은 보통 10~30KB.
+#define CLIP_RELAY_MAX_BYTES (256 * 1024)
+// 이보다 오래된 업로드 프레임은 /capture 로 내주지 않는다(정지 화면을 새 것처럼
+// 보내지 않기 위해 — 오래되면 503 no_recent_frame).
+#define CLIP_RELAY_MAX_AGE_MS 5000UL
 
 // 조준·초점 점검용 단독 화면(`/`). 물리적으로 통제된 상태에서만 켠다(§10.1).
 // 기본은 꺼 둔다 — 무인증 공개 카메라를 만들지 않기 위해서다.

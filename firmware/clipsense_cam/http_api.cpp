@@ -63,6 +63,14 @@ void HttpApi::begin() {
   _server.on("/capture", HTTP_OPTIONS, [this]() { handleOptions(); });
   _server.on("/jpg", HTTP_GET, [this]() { handleCapture(); });  // 호환 별칭
   _server.on("/jpg", HTTP_OPTIONS, [this]() { handleOptions(); });
+#if CLIP_ENABLE_LAPTOP_RELAY
+  _relayBuf = static_cast<uint8_t*>(ps_malloc(CLIP_RELAY_MAX_BYTES));
+  _relayRecvBuf = static_cast<uint8_t*>(ps_malloc(CLIP_RELAY_MAX_BYTES));
+  _server.on(
+      "/frame", HTTP_POST, [this]() { handleFrameUploadDone(); },
+      [this]() { handleFrameUpload(); });
+  _server.on("/relay", HTTP_GET, [this]() { handleRelayStatus(); });
+#endif
   _server.on("/", HTTP_GET, [this]() { handleRoot(); });
   _server.onNotFound([this]() { handleNotFound(); });
 
@@ -97,7 +105,7 @@ void HttpApi::applyCommonHeaders(bool exposeCaptureHeaders) {
       _server.sendHeader(
           "Access-Control-Expose-Headers",
           "X-Frame-Seq, X-Capture-Uptime-Us, X-Response-Uptime-Us, X-Boot-Id, "
-          "X-Firmware-Version, X-Camera-Sensor");
+          "X-Firmware-Version, X-Camera-Sensor, X-Frame-Source");
     }
   }
 }
@@ -176,6 +184,9 @@ void HttpApi::handleHealth() {
 void HttpApi::handleCapture() {
   if (!authorize()) return;
 
+  // 카메라가 초기화되지 않았으면 노트북 업로드 프레임으로 대신한다(표시 헤더 포함).
+  if (!_camera.cameraOk() && sendRelayFrame()) return;
+
   CaptureResult shot = _camera.capture();
   if (!shot.ok) {
     applyCommonHeaders(false);
@@ -210,6 +221,102 @@ void HttpApi::handleCapture() {
   _server.sendContent(reinterpret_cast<const char*>(shot.fb->buf), shot.fb->len);
 
   _camera.release(shot);
+  _frameSourceName = "camera";
+}
+
+// ── 노트북 촬영 중계 ───────────────────────────────────────────────────────
+// 본문은 multipart/form-data 의 파일 조각으로 받는다(WebServer 의 "plain" 인자는
+// 문자열이라 JPEG 안의 0x00 에서 잘린다). 토큰은 완료 시점에 확인하고, 실패하면
+// 받은 내용을 버린다 — 인증되지 않은 프레임은 /capture 로 나가지 않는다.
+void HttpApi::handleFrameUpload() {
+  HTTPUpload& up = _server.upload();
+  if (_relayRecvBuf == nullptr) return;
+  if (up.status == UPLOAD_FILE_START) {
+    _relayRecvLen = 0;
+    _relayRecvOverflow = false;
+  } else if (up.status == UPLOAD_FILE_WRITE) {
+    if (_relayRecvLen + up.currentSize > CLIP_RELAY_MAX_BYTES) {
+      _relayRecvOverflow = true;
+      return;
+    }
+    memcpy(_relayRecvBuf + _relayRecvLen, up.buf, up.currentSize);
+    _relayRecvLen += up.currentSize;
+  }
+}
+
+void HttpApi::handleFrameUploadDone() {
+  if (!authorize()) {
+    _relayRecvLen = 0;
+    _relayRejectCount++;
+    return;
+  }
+  applyCommonHeaders(false);
+  if (_relayRecvBuf == nullptr || _relayBuf == nullptr) {
+    _server.send(503, "application/json", "{\"error\":\"relay_unavailable\"}");
+    return;
+  }
+  const bool looksJpeg = _relayRecvLen > 4 && _relayRecvBuf[0] == 0xFF &&
+                         _relayRecvBuf[1] == 0xD8;
+  if (_relayRecvOverflow || !looksJpeg) {
+    _relayRejectCount++;
+    _relayRecvLen = 0;
+    _server.send(400, "application/json",
+                 _relayRecvOverflow ? "{\"error\":\"frame_too_large\"}"
+                                    : "{\"error\":\"not_jpeg\"}");
+    return;
+  }
+  memcpy(_relayBuf, _relayRecvBuf, _relayRecvLen);
+  _relayLen = _relayRecvLen;
+  _relayRecvLen = 0;
+  _relaySeq++;
+  _relayUploadCount++;
+  _relayUptimeUs = esp_timer_get_time();
+  _server.send(200, "application/json",
+               "{\"ok\":true,\"relaySeq\":" + String(_relaySeq) +
+                   ",\"bytes\":" + String(_relayLen) + "}");
+}
+
+// 중계 상태는 /health 계약(26개 키)을 바꾸지 않도록 별도 경로로 낸다.
+void HttpApi::handleRelayStatus() {
+  if (!authorize()) return;
+  String json = "{";
+  json += "\"relaySeq\":" + String(_relaySeq) + ",";
+  json += "\"relayUploadCount\":" + String(_relayUploadCount) + ",";
+  json += "\"relayRejectCount\":" + String(_relayRejectCount) + ",";
+  json += "\"relayUptimeUs\":" + String(_relayUptimeUs) + ",";
+  json += "\"relayBytes\":" + String(_relayLen) + ",";
+  json += "\"servedSource\":\"" + String(_frameSourceName) + "\",";
+  json += "\"cameraOk\":" + String(_camera.cameraOk() ? "true" : "false");
+  json += "}";
+  applyCommonHeaders(false);
+  _server.send(200, "application/json", json);
+}
+
+bool HttpApi::sendRelayFrame() {
+#if CLIP_ENABLE_LAPTOP_RELAY
+  if (_relayBuf == nullptr || _relayLen == 0) return false;
+  const uint64_t nowUs = esp_timer_get_time();
+  if (nowUs - _relayUptimeUs > CLIP_RELAY_MAX_AGE_MS * 1000ULL) {
+    applyCommonHeaders(false);
+    _server.send(503, "application/json", "{\"error\":\"no_recent_frame\"}");
+    return true;
+  }
+  applyCommonHeaders(true);
+  _server.sendHeader("X-Frame-Seq", String(_relaySeq));
+  _server.sendHeader("X-Capture-Uptime-Us", String(_relayUptimeUs));
+  _server.sendHeader("X-Response-Uptime-Us", String(nowUs));
+  _server.sendHeader("X-Boot-Id", _bootId);
+  _server.sendHeader("X-Firmware-Version", CLIP_FIRMWARE_VERSION);
+  _server.sendHeader("X-Camera-Sensor", "LAPTOP");
+  _server.sendHeader("X-Frame-Source", "laptop-upload");
+  _server.setContentLength(_relayLen);
+  _server.send(200, "image/jpeg", "");
+  _server.sendContent(reinterpret_cast<const char*>(_relayBuf), _relayLen);
+  _frameSourceName = "laptop-upload";
+  return true;
+#else
+  return false;
+#endif
 }
 
 void HttpApi::handleRoot() {

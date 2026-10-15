@@ -4,6 +4,8 @@
 //   /health  80  상태·버전·장애 통계 (JSON)
 //   /capture 80  판정용 단일 JPEG
 //   /jpg     80  /capture 호환 별칭
+//   /frame   80  (POST) 노트북 촬영 중계 — 카메라를 못 쓸 때만 /capture 로 나감
+//   /relay   80  중계 통계 (JSON, /health 계약과 분리)
 //
 // 보안(§10.1): /health·/capture·/jpg는 X-Clip-Device-Token을 요구한다.
 // CORS는 설정된 origin만 허용하고 와일드카드를 쓰지 않는다.
@@ -32,6 +34,10 @@ class HttpApi {
   void handleCapture();
   void handleNotFound();
   void handleOptions();
+  void handleFrameUpload();     // POST /frame 본문(multipart) 조각 수신
+  void handleFrameUploadDone(); // POST /frame 완료 응답
+  bool sendRelayFrame();        // /capture: 카메라 대신 최근 업로드 프레임 전송
+  void handleRelayStatus();     // GET /relay: 중계 통계(JSON)
 
   // 요청의 Origin이 허용 목록에 있으면 그 값을, 없으면 nullptr을 돌려준다.
   const char* allowedOrigin() const;
@@ -47,4 +53,16 @@ class HttpApi {
   ClipNetwork& _net;
   const char* _deviceToken;
   const char* _bootId;
+
+  // ── 노트북 촬영 중계 상태 ──
+  uint8_t* _relayBuf = nullptr;       // 완성된 프레임 (PSRAM)
+  size_t _relayLen = 0;
+  uint8_t* _relayRecvBuf = nullptr;   // 수신 중인 프레임 (PSRAM)
+  size_t _relayRecvLen = 0;
+  bool _relayRecvOverflow = false;
+  uint32_t _relaySeq = 0;             // 업로드 성공 시에만 증가
+  uint64_t _relayUptimeUs = 0;        // 업로드 완료 시각(보드 uptime)
+  uint32_t _relayUploadCount = 0;
+  uint32_t _relayRejectCount = 0;
+  const char* _frameSourceName = "none";
 };

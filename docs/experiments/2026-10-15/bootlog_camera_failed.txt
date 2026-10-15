@@ -1,0 +1,121 @@
+=========== Before Setup Start ===========
+Chip Info:
+------------------------------------------
+  Model             : ESP32-S3
+  Package           : 0
+  Revision          : 0.02
+  Cores             : 2
+  CPU Frequency     : 240 MHz
+  XTAL Frequency    : 40 MHz
+  Features Bitfield : 0x00000012
+  Embedded Flash    : No
+  Embedded PSRAM    : No
+  2.4GHz WiFi       : Yes
+  Classic BT        : No
+  BT Low Energy     : Yes
+  IEEE 802.15.4     : No
+------------------------------------------
+INTERNAL Memory Info:
+------------------------------------------
+  Total Size        :   342236 B ( 334.2 KB)
+  Free Bytes        :   304064 B ( 296.9 KB)
+  Allocated Bytes   :    33076 B (  32.3 KB)
+  Minimum Free Bytes:   298796 B ( 291.8 KB)
+  Largest Free Block:   245748 B ( 240.0 KB)
+------------------------------------------
+SPIRAM Memory Info:
+------------------------------------------
+  Total Size        :  8388608 B (8192.0 KB)
+  Free Bytes        :  8386096 B (8189.5 KB)
+  Allocated Bytes   :      136 B (   0.1 KB)
+  Minimum Free Bytes:  8386096 B (8189.5 KB)
+  Largest Free Block:  8257524 B (8064.0 KB)
+  Bus Mode          : OPI
+------------------------------------------
+Flash Info:
+------------------------------------------
+  Chip Size         :  8388608 B (8 MB)
+  Block Size        :    65536 B (  64.0 KB)
+  Sector Size       :     4096 B (   4.0 KB)
+  Page Size         :      256 B (   0.2 KB)
+  Bus Speed         : 80 MHz
+  Bus Mode          : QIO
+------------------------------------------
+Partitions Info:
+------------------------------------------
+                nvs : addr: 0x00009000, size:    20.0 KB, type: DATA, subtype: NVS
+            otadata : addr: 0x0000E000, size:     8.0 KB, type: DATA, subtype: OTA
+               app0 : addr: 0x00010000, size:  3264.0 KB, type:  APP, subtype: OTA_0
+               app1 : addr: 0x00340000, size:  3264.0 KB, type:  APP, subtype: OTA_1
+             spiffs : addr: 0x00670000, size:  1536.0 KB, type: DATA, subtype: SPIFFS
+           coredump : addr: 0x007F0000, size:    64.0 KB, type: DATA, subtype: COREDUMP
+------------------------------------------
+Software Info:
+------------------------------------------
+  Compile Date/Time : Oct 15 2026 15:17:29
+  Compile Host OS   : macosx
+  ESP-IDF Version   : v5.5.1-1-g129cd0d247
+  Arduino Version   : 3.3.0
+------------------------------------------
+Board Info:
+------------------------------------------
+  Arduino Board     : XIAO_ESP32S3
+  Arduino Variant   : XIAO_ESP32S3
+  Arduino FQBN      : esp32:esp32:XIAO_ESP32S3:PSRAM=opi,DebugLevel=debug
+============ Before Setup End ============
+[   128][I][esp32-hal-periman.c:141] perimanSetPinBus(): Pin 19 already has type USB_DM (45) with bus 0x3fc9e9e8
+[   128][I][esp32-hal-periman.c:141] perimanSetPinBus(): Pin 20 already has type USB_DP (46) with bus 0x3fc9e9e8
+E (140) camera: Detected camera not supported.
+E (141) camera: Camera probe failed with error 0x106(ESP_ERR_NOT_SUPPORTED)
+E (141) gdma: gdma_disconnect(309): no peripheral is connected to the channel
+[   284][W][STA.cpp:137] _onStaArduinoEvent(): Reason: 202 - AUTH_FAIL
+[   284][D][STA.cpp:155] _onStaArduinoEvent(): WiFi Reconnect Running
+[   284][W][STA.cpp:543] disconnect(): STA already disconnected.
+
+=== ClipSense camera ===
+firmwareVersion   0.2.0
+buildTimestamp    Oct 15 2026 15:17:20
+deviceId          clipsense-cam-01
+bootId            3e6052ee
+bootCounter       2836116257
+resetReason       11
+cameraSensorPid   unknown
+cameraOk          false
+cameraError       esp_camera_init_failed
+resolution        0x0
+jpegQuality       12
+psramBytes        8388608
+freePsram         8374816
+heapBytes         342236
+minFreeHeap       253372
+networkMode       STA
+hostname          clipsense-0000.local
+ip                10.185.91.103
+========================
+=========== After Setup Start ============
+INTERNAL Memory Info:
+------------------------------------------
+  Total Size        :   342236 B ( 334.2 KB)
+  Free Bytes        :   253372 B ( 247.4 KB)
+  Allocated Bytes   :    80672 B (  78.8 KB)
+  Minimum Free Bytes:   253372 B ( 247.4 KB)
+  Largest Free Block:   212980 B ( 208.0 KB)
+------------------------------------------
+SPIRAM Memory Info:
+------------------------------------------
+  Total Size        :  8388608 B (8192.0 KB)
+  Free Bytes        :  8374816 B (8178.5 KB)
+  Allocated Bytes   :    10824 B (  10.6 KB)
+  Minimum Free Bytes:  8372332 B (8176.1 KB)
+  Largest Free Block:  8257524 B (8064.0 KB)
+------------------------------------------
+GPIO Info:
+------------------------------------------
+  GPIO : BUS_TYPE[bus/unit][chan]
+  --------------------------------------  
+    19 : USB_DM
+    20 : USB_DP
+    21 : GPIO
+    43 : UART_TX[0]
+    44 : UART_RX[0]
+============ After Setup End =============
