@@ -7,6 +7,7 @@ import { MESSAGES } from './safety/reasonCodes.js'
 import { createAnnouncer } from './feedback/tts.js'
 import { vibrate } from './feedback/haptic.js'
 import CameraView from './ui/CameraView.jsx'
+import BoardPhotoPanel from './ui/BoardPhotoPanel.jsx'
 import SourcePanel from './ui/SourcePanel.jsx'
 import SafetyGatePanel from './ui/SafetyGatePanel.jsx'
 import ComparisonPanel from './ui/ComparisonPanel.jsx'
@@ -373,6 +374,8 @@ export default function App() {
         <h1>ClipSense — SafeGraph-RTA</h1>
         <p>Boolean-AND 기준선 vs SafeGraph-RTA 실시간 A/B 비교 · 결함주입 시연 프로토타입</p>
       </header>
+
+      <BoardPhotoPanel />
 
       <main className="main-grid">
         {/* CameraView는 절대 조건부로 언마운트/이동시키지 않는다 — 트리 위치는

@@ -2,6 +2,7 @@ import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import basicSsl from '@vitejs/plugin-basic-ssl'
+import { boardProxyPlugin } from './dev/boardProxy.js'
 
 // 카메라 모드 target — src/App.jsx의 CAMERA_TARGET과 동일한 5필드 고정 데모
 // target(MANUAL_DEMO 바인딩)이다. 이 미들웨어는 App.jsx를 import할 수 없는
@@ -116,6 +117,7 @@ export default defineConfig(({ mode }) => {
       basicSsl(), // dev HTTPS — 폰에서 getUserMedia는 secure context 필요 (스펙 §W1.1)
       citsMockPlugin(),
       esp32ProxyPlugin(),
+      boardProxyPlugin(),
       VitePWA({
         registerType: 'autoUpdate',
         manifest: {
