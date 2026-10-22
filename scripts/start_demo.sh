@@ -11,10 +11,23 @@ mac_ip=$(ipconfig getifaddr en0)
 if [ -z "$mac_ip" ]; then echo "Mac이 Wi-Fi에 연결돼 있지 않습니다. 핫스팟에 연결하세요."; exit 1; fi
 prefix=${mac_ip%.*}
 echo "Mac IP: $mac_ip — 같은 망(${prefix}.x)에서 보드를 찾는 중…"
-for i in $(seq 1 254); do ping -c1 -W 300 "$prefix.$i" >/dev/null 2>&1 & done; wait
-board_ip=$(arp -an | grep -i " at ${BOARD_MAC} " | sed -E 's/.*\(([0-9.]+)\).*/\1/' | head -1)
+find_board() {
+  for i in $(seq 1 254); do ping -c1 -W 300 "$prefix.$i" >/dev/null 2>&1 & done; wait
+  arp -an | grep -i " at ${BOARD_MAC} " | sed -E 's/.*\(([0-9.]+)\).*/\1/' | head -1
+}
+board_ip=$(find_board)
 if [ -z "$board_ip" ]; then
-  echo "보드를 찾지 못했습니다. 보드 USB 전원·핫스팟 거리를 확인하고 30초 뒤 다시 실행하세요."; exit 1
+  # USB를 다시 꽂았을 때 30초 안에 핫스팟에 못 붙으면 보드는 복구 AP 모드로 남는다(스스로 다시
+  # 접속하지 않음). USB로 연결돼 있으면 리셋해서 다시 접속시키고 한 번 더 찾는다.
+  port=$(ls /dev/cu.usbmodem* 2>/dev/null | head -1)
+  if [ -n "$port" ]; then
+    echo "못 찾음 → 보드를 리셋해서 다시 접속시킵니다(약 30초)…"
+    .venv/bin/python -c "import serial,time; s=serial.Serial('$port',115200); s.dtr=False; s.rts=True; time.sleep(0.15); s.rts=False; s.close()"
+    for n in 1 2 3; do sleep 10; board_ip=$(find_board); [ -n "$board_ip" ] && break; done
+  fi
+fi
+if [ -z "$board_ip" ]; then
+  echo "보드를 찾지 못했습니다. 보드 USB 전원, 핫스팟 휴대폰 화면 켜짐·거리(50cm 안)를 확인하고 다시 실행하세요."; exit 1
 fi
 echo "보드 IP: $board_ip"
 [ "${1:-}" = "--find" ] && exit 0
