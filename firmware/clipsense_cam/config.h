@@ -23,7 +23,7 @@
 // ── 네트워크 (보고서 §9.4) ─────────────────────────────────────────────────
 // STA 연결 제한시간. 초과하면 복구용 SoftAP로 전환한다(자동 안전 failover가
 // 아니라, 사용자가 직접 접속해 상태를 확인하기 위한 복구 경로다).
-#define CLIP_STA_CONNECT_TIMEOUT_MS 15000UL
+#define CLIP_STA_CONNECT_TIMEOUT_MS 30000UL
 
 // STA_ACTIVE 중 연결이 끊기면 이 간격으로 재접속을 시도한다(비동기).
 #define CLIP_STA_RETRY_INTERVAL_MS 5000UL

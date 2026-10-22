@@ -23,6 +23,8 @@ TESTS = [
     "test_digits_robust.py",
     "test_voice.py",
     "test_clip_cam_sim.py",
+    "test_mini_intersection.py",
+    "test_clip_web.py",
     "verify_firmware_contract.py",
 ]
 

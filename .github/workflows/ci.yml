@@ -32,6 +32,8 @@ jobs:
         run: python scripts/run_unit_tests.py
       - name: Run end-to-end video pipeline
         run: python scripts/run_pipeline_test.py
+      - name: Check web client state and speech flow
+        run: node scripts/test_clip_web_client.cjs
 
   firmware:
     runs-on: ubuntu-latest

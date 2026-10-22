@@ -35,6 +35,7 @@ void ClipNetwork::begin(const char* ssid, const char* password,
 void ClipNetwork::enterStaConnecting() {
   _state = NetState::StaConnecting;
   _connectStartedMs = millis();
+  _lastRetryMs = _connectStartedMs;
   WiFi.mode(WIFI_STA);
   WiFi.setHostname(_hostname.c_str());
   WiFi.begin(_ssid, _password);
@@ -79,6 +80,13 @@ void ClipNetwork::loop() {
         enterStaActive();
       } else if (now - _connectStartedMs >= CLIP_STA_CONNECT_TIMEOUT_MS) {
         enterApRecovery();
+      } else if (now - _lastRetryMs >= CLIP_STA_RETRY_INTERVAL_MS) {
+        // 자동 재접속을 껐으므로 첫 시도가 실패(휴대폰 핫스팟의 첫 인증 실패
+        // reason 202 등)하면 드라이버가 다시 시도하지 않는다. 제한시간 안에서
+        // 직접 다시 시도한다.
+        _lastRetryMs = now;
+        WiFi.disconnect();
+        WiFi.begin(_ssid, _password);
       }
       break;
 
