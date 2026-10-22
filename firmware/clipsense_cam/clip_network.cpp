@@ -1,6 +1,7 @@
 #include "clip_network.h"
 
 #include <ESPmDNS.h>
+#include <esp_wifi.h>
 
 namespace {
 
@@ -44,6 +45,10 @@ void ClipNetwork::enterStaConnecting() {
 void ClipNetwork::enterStaActive() {
   _state = NetState::StaActive;
   _retryCount = 0;
+  // begin()의 setSleep(false)는 Wi-Fi 시작 전이라 적용되지 않을 수 있다. 접속된 뒤 절전을
+  // 확실히 끈다 — 휴대폰 핫스팟에서 절전이 켜지면 왕복이 300~700ms로 늘어 사진이 시간 초과된다.
+  WiFi.setSleep(false);
+  esp_wifi_set_ps(WIFI_PS_NONE);
   startMdns();
 }
 

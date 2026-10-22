@@ -39,7 +39,10 @@ from vision_adapter import to_reading
 ROOT = Path(__file__).resolve().parent
 MAX_JPEG = 512 * 1024
 STALE_MS = 2000
-REQUEST_TIMEOUT = 0.8
+# 휴대폰 핫스팟에서 신호가 약하면 사진 한 장이 0.7~1.8초 걸린다(10/22 실측). 0.8초로는 대부분
+# 시간 초과였다. 사진 나이(2초 초과 금지)는 따로 검사하므로 기다리는 시간만 늘려도 오래된 사진으로
+# 안내하지 않는다.
+REQUEST_TIMEOUT = 1.5
 POLL_SECONDS = 0.25
 
 
@@ -72,6 +75,8 @@ def provenance(headers):
         kind, label = 'sim', 'SIM · 모의 사진'
     elif sensor.upper() == 'LAPTOP' or source == 'laptop-upload':
         kind, label = 'laptop-relay', '노트북 촬영 → 보드 중계'
+    elif sensor.upper() in ('OV2640', 'OV3660', 'OV5640') and source == 'usb-serial':
+        kind, label = 'clip', '클립 센서 사진 · USB 연결'
     elif sensor.upper() in ('OV2640', 'OV3660', 'OV5640'):
         kind, label = 'clip', '클립 센서 사진 · 현장 확인 필요'
     else:
@@ -179,7 +184,7 @@ class ClipFeed:
                                   else 'clip-web-rules-2026-10-19-v1'), 'sha256': hashes,
                       'config': copy.deepcopy(self.cfg), 'roiFraction': roi_fraction,
                       'vision': vision, 'rotate': rotate,
-                      'staleMs': STALE_MS, 'requestTimeoutMs': 800,
+                      'staleMs': STALE_MS, 'requestTimeoutMs': int(REQUEST_TIMEOUT * 1000),
                       'pollMs': 250, 'apiConnected': api is not None,
                       'apiSimulated': bool(api and api.simulated),
                       'method': ('신호등 몸체 찾기 + 위 빨강/아래 초록 칸 + 7-세그먼트 숫자 + 연속 8프레임 확인'
@@ -293,6 +298,8 @@ class ClipFeed:
             self.connection, self.error = 'connected', None
 
     def poll(self):
+        if self.origin.startswith('serial:'):
+            return self._poll_serial()
         start = self.clock()
         request = urllib.request.Request(self.origin + '/capture', headers={
             CLIP_TOKEN_HEADER: self.token, 'Cache-Control': 'no-cache'})
@@ -312,6 +319,29 @@ class ClipFeed:
             self.fail('token_rejected' if code in (401, 403) else f'http_{code}')
         except (urllib.error.URLError, OSError, http.client.HTTPException, ValueError, cv2.error):
             self.fail('unreachable')
+
+    def _poll_serial(self):
+        """USB 케이블로 사진 한 장(clip_serial). 검사·판독은 Wi-Fi 사진과 같다."""
+        from clip_serial import SerialCaptureError, SerialClip
+        if getattr(self, '_serial', None) is None:
+            self._serial = SerialClip(self.origin[len('serial:'):], timeout_s=REQUEST_TIMEOUT)
+        start = self.clock()
+        try:
+            jpeg, headers = self._serial.capture()
+        except TimeoutError:
+            self.fail('timeout')
+            return
+        except SerialCaptureError as exc:
+            self.fail('http_409' if str(exc) == 'busy' else 'http_503')
+            return
+        except OSError:
+            self.fail('unreachable')
+            return
+        now = self.clock()
+        try:
+            self.accept(jpeg, headers, math.ceil((now - start) * 1000), now)
+        except (ValueError, cv2.error):
+            self.fail('bad_jpeg')
 
     def run(self):
         while not self.stop.is_set():
@@ -404,7 +434,7 @@ def make_handler(feed, allowed_hosts):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument('--clip', required=True, help='예: http://192.168.0.52')
+    parser.add_argument('--clip', required=True, help='예: http://192.168.0.52 또는 serial:/dev/cu.usbmodem1201(USB)')
     parser.add_argument('--listen', default='127.0.0.1')
     parser.add_argument('--port', type=int, default=5173)
     parser.add_argument('--allow-host', action='append', default=[], help='폰 접속 시 Mac의 LAN IP (포트 제외)')
@@ -419,10 +449,15 @@ def main():
     parser.add_argument('--direction', default='nt', help='보행신호 방위 접두사 (nt/et/st/wt/ne/se/sw/nw)')
     parser.add_argument('--api-interval', type=float, default=0.5, help='API 조회 간격(초). 실 T-Data는 300초 이상으로 강제')
     args = parser.parse_args()
-    try:
-        origin = clip_origin(args.clip)
-    except ValueError as exc:
-        parser.error(str(exc))
+    if args.clip.startswith('serial:'):
+        origin = args.clip  # USB 케이블: serial:/dev/cu.usbmodem…
+        if not Path(origin[len('serial:'):]).exists():
+            parser.error(f'USB 포트가 없습니다: {origin}')
+    else:
+        try:
+            origin = clip_origin(args.clip)
+        except ValueError as exc:
+            parser.error(str(exc))
     if not 0 < args.roi_fraction <= 1:
         parser.error('--roi-fraction은 0 초과 1 이하여야 합니다')
     if not 0 <= args.port <= 65535:
@@ -431,6 +466,8 @@ def main():
     token = os.environ.get('CLIP_DEVICE_TOKEN', '').strip()
     if not token and token_path.exists():
         token = token_path.read_text().strip()
+    if not token and origin.startswith('serial:'):
+        token = 'usb'  # USB 경로는 토큰을 쓰지 않는다(물리적으로 꽂힌 기기만)
     if not token or any(ord(c) < 32 or ord(c) > 126 for c in token):
         parser.error('유효한 토큰이 없습니다. CLIP_DEVICE_TOKEN 또는 ~/.clipsense/device_token을 설정하세요')
     api = None

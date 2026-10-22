@@ -51,6 +51,12 @@
 // 이 프레임은 클립 촬영이 아니므로 응답마다 X-Frame-Source: laptop-upload,
 // X-Camera-Sensor: LAPTOP 을 붙여 구별한다. 카메라가 정상이면 항상 카메라가 우선이다.
 #define CLIP_ENABLE_LAPTOP_RELAY 1
+
+// ── USB 케이블로 사진 받기 (2026-10-22) ────────────────────────────────────
+// 휴대폰 핫스팟 Wi-Fi가 약하면 사진 한 장이 0.7~1.8초 걸려 웹이 시간 초과됐다. 보드가 Mac에
+// USB로 꽂혀 있을 때 호스트가 'C' 한 바이트를 보내면 같은 카메라 사진을 USB로 보낸다.
+// USB에 물리적으로 꽂힌 기기만 쓸 수 있으므로 기기 토큰을 요구하지 않는다.
+#define CLIP_ENABLE_SERIAL_CAPTURE 1
 // 받아 둘 JPEG 최대 크기(PSRAM). QVGA JPEG은 보통 10~30KB.
 #define CLIP_RELAY_MAX_BYTES (256 * 1024)
 // 이보다 오래된 업로드 프레임은 /capture 로 내주지 않는다(정지 화면을 새 것처럼

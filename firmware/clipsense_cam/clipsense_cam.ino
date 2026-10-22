@@ -160,9 +160,35 @@ void setup() {
   }
 }
 
+#if CLIP_ENABLE_SERIAL_CAPTURE
+// 머리줄 "CLIPFRAME <seq> <bootId> <captureUs> <responseUs> <len> <sensor>" 뒤에 JPEG len바이트.
+// 실패는 "CLIPERR <이유>". 머리줄의 값은 HTTP /capture 응답 헤더와 같은 뜻이다.
+void serviceSerialCapture() {
+  while (Serial.available() > 0) {
+    if (Serial.read() != 'C') continue;
+    CaptureResult shot = camera.capture();
+    if (!shot.ok) {
+      Serial.printf("\nCLIPERR %s\n", camera.lastAttemptWasBusy() ? "busy" : "capture_failed");
+      continue;
+    }
+    clipSignalCaptureLed();
+    const uint64_t responseUptimeUs = esp_timer_get_time();
+    Serial.printf("\nCLIPFRAME %lu %s %llu %llu %u %s\n", (unsigned long)shot.frameSeq, bootId,
+                  (unsigned long long)shot.captureUptimeUs, (unsigned long long)responseUptimeUs,
+                  (unsigned)shot.fb->len, camera.sensorName());
+    Serial.write(shot.fb->buf, shot.fb->len);
+    Serial.flush();
+    camera.release(shot);
+  }
+}
+#endif
+
 void loop() {
   network.loop();
   if (api != nullptr) api->loop();
+#if CLIP_ENABLE_SERIAL_CAPTURE
+  serviceSerialCapture();
+#endif
 
   if (ledOn && millis() >= ledOffAtMs) {
     ledWrite(false);
