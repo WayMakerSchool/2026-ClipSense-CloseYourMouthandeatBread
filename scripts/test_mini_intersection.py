@@ -236,7 +236,8 @@ def test_signal_layout():
     layout = sim.LAYOUT
     scale = min(640, 480) / 100  # One vmin in pixels.
     hw, hh = layout["housing_width"] * scale, layout["housing_height"] * scale
-    hx, hy = 640 * layout["center_x"] / 100 - hw / 2, (480 - hh) / 2
+    group_shift = (layout["countdown_gap"] + layout["countdown_width"]) * scale / 2
+    hx, hy = 320 - group_shift - hw / 2, (480 - hh) / 2
     cw, ch = layout["countdown_width"] * scale, layout["countdown_height"] * scale
     cx = hx + hw + layout["countdown_gap"] * scale
     cy = hy + hh * layout["bottom_center"] - ch / 2

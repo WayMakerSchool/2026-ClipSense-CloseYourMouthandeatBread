@@ -146,8 +146,10 @@ def guidance_text(decision, vision_state, api_configured):
         # API 없이 카메라만: 초록이어도 남은 시간을 모르므로 대기(10/19 문구 유지).
         if vision_state == 'RED':
             return '빨간불로 판독했습니다. 기다리세요.'
-        if vision_state in ('GREEN', 'GREEN_BLINK'):
+        if vision_state == 'GREEN':
             return '초록불로 판독했습니다. 실제 남은 시간을 확인할 수 없습니다. 기다리세요.'
+        if vision_state == 'GREEN_BLINK':
+            return '초록불이 깜박입니다. 곧 바뀌니 새로 건너지 말고 기다리세요.'
         return '신호를 확인할 수 없습니다. 기다리세요.'
     if decision.decision == WALK:
         return f'{REASON_TEXT[REASON_READY]}. 건너세요.'
@@ -173,7 +175,8 @@ class ClipFeed:
                  'signal_head.py', 'digits.py']
         hashes = {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
                   for name in files}
-        self.rules = {'version': 'clip-web-rules-2026-10-19-v1', 'sha256': hashes,
+        self.rules = {'version': ('clip-web-rules-2026-10-22-head-v4' if vision == 'head'
+                                  else 'clip-web-rules-2026-10-19-v1'), 'sha256': hashes,
                       'config': copy.deepcopy(self.cfg), 'roiFraction': roi_fraction,
                       'vision': vision, 'rotate': rotate,
                       'staleMs': STALE_MS, 'requestTimeoutMs': 800,
@@ -262,6 +265,7 @@ class ClipFeed:
                 vision_info = {
                     'roi': head.head or [0, 0, w, h], 'boxes': head.boxes,
                     'digits': head.digits, 'digitsFrame': head.digits_frame,
+                    'headTracked': head.tracked,
                     'red': {'area_ratio': head.red_area}, 'green': {'area_ratio': head.green_area},
                     'brightness': None}
             else:
@@ -330,7 +334,13 @@ class ClipFeed:
             state = frame['stable'] if frame else 'UNKNOWN'
             # 전환 중/미검출 프레임에서 이전 확정색으로 안내하지 않는다.
             # 점멸 확정은 프레임마다 켜짐/꺼짐이 바뀌는 것이 정상이므로 그대로 둔다.
-            if frame and frame['raw'] != state and state != 'GREEN_BLINK':
+            # 점멸 확정은 켜짐/꺼짐이 번갈아 오는 것이 정상이므로, 이 사진이 초록 켜짐이거나
+            # '신호등은 보이는데 램프만 꺼짐'일 때만 유지한다. 빨강이 보이거나 신호등이 없는
+            # 사진에서 점멸(초록 계열)로 안내하면 안 된다(10/22 실사진에서 발견: 빨간 화면·커튼
+            # 사진에 '초록불' 안내가 나감).
+            blink_frame_ok = frame and (frame['raw'] == 'GREEN' or (
+                frame['raw'] == 'NONE' and frame.get('detectorReason') in ('lamp_off', 'no_blob')))
+            if frame and frame['raw'] != state and not (state == 'GREEN_BLINK' and blink_frame_ok):
                 state = 'UNKNOWN'
             api_reading = self.api.current() if self.api else None
             # 숫자 판독은 '올림한 초'로 표시되고 사진도 age만큼 지났으므로, 보수적으로

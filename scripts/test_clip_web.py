@@ -277,9 +277,10 @@ class ApiJudgeTests(unittest.TestCase):
         self.assertGreaterEqual(real.interval, 300)
 
 
-def head_jpeg(phase='green', digits=None, ball=None, swap=False):
+def head_jpeg(phase='green', digits=None, ball=None, swap=False, lamp_on=True, no_head=False):
     image = np.full((240, 320, 3), 128, np.uint8)
-    draw_signal_head(image, 90, 30, 64, 128, phase, digits=digits)
+    if not no_head:
+        draw_signal_head(image, 90, 30, 64, 128, phase, lamp_on=lamp_on, digits=digits)
     if swap:  # 초록을 위 칸에 칠한다 — 보행 신호등 배치가 아니다
         cv2.circle(image, (122, 62), 23, (0, 224, 0), -1)
         cv2.circle(image, (122, 126), 23, (38, 38, 38), -1)
@@ -346,6 +347,78 @@ class SignalHeadTests(unittest.TestCase):
         snap = self.run_frames(phase='red')
         self.assertEqual((snap['decision'], snap['decisionReason']), ('WAIT', 'red_signal'))
         self.assertIn('빨간불입니다', snap['guidance'])
+
+    def blink_then(self, **after):
+        # 초록 점멸(켜짐/꺼짐 0.5초)을 확정시킨 뒤 다른 장면을 넣는다.
+        snap = None
+        for i in range(16):
+            snap = self.run_frames(frames=2, phase='clearance', digits=5, lamp_on=(i % 2 == 0))
+        self.assertEqual(snap['visionState'], 'GREEN_BLINK')
+        return self.run_frames(frames=1, **after)
+
+    def test_blink_is_not_carried_onto_red_frame(self):
+        self.feed.api = None
+        snap = self.blink_then(phase='red')
+        self.assertEqual(snap['visionState'], 'UNKNOWN')
+        self.assertNotIn('초록', snap['guidance'])
+
+    def test_blink_is_not_carried_when_no_signal_head(self):
+        self.feed.api = None
+        snap = self.blink_then(no_head=True)
+        self.assertEqual(snap['visionState'], 'UNKNOWN')
+        self.assertNotIn('초록', snap['guidance'])
+
+    def test_blink_guidance_explains_why(self):
+        self.feed.api = None
+        snap = None
+        for i in range(16):
+            snap = self.run_frames(frames=2, phase='clearance', digits=5, lamp_on=(i % 2 == 0))
+        self.assertEqual(snap['visionState'], 'GREEN_BLINK')
+        self.assertIn('깜박', snap['guidance'])
+
+    def test_tracking_bridges_one_missed_frame_but_not_a_scene_change(self):
+        from signal_head import SignalHeadReader
+        reader = SignalHeadReader(self.feed.cfg)
+        decode = lambda data: cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
+        self.assertEqual(reader.read(decode(head_jpeg('green', 9))).raw, 'GREEN')
+        # 몸체 윤곽이 끊긴 사진(몸체 위에 회색 줄): 새로 찾지는 못해도 같은 자리를 이어 쓴다
+        cut = decode(head_jpeg('green', 9))
+        cv2.rectangle(cut, (88, 90), (156, 96), (128, 128, 128), -1)
+        res = reader.read(cut)
+        self.assertTrue(res.tracked)
+        self.assertEqual(res.raw, 'GREEN')
+        # 카메라가 딴 곳(회색 벽)을 보면 이어 쓰지 않는다
+        wall = np.full((240, 320, 3), 128, np.uint8)
+        res = reader.read(wall)
+        self.assertFalse(res.tracked)
+        self.assertEqual(res.reason, 'no_signal_head')
+
+    def test_tracking_stops_after_limit(self):
+        from signal_head import SignalHeadReader, TRACK_MAX_MISSES
+        reader = SignalHeadReader(self.feed.cfg)
+        decode = lambda data: cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
+        reader.read(decode(head_jpeg('red')))
+        cut = decode(head_jpeg('red'))
+        cv2.rectangle(cut, (88, 90), (156, 96), (128, 128, 128), -1)
+        results = [reader.read(cut) for _ in range(TRACK_MAX_MISSES + 1)]
+        self.assertTrue(all(r.tracked for r in results[:TRACK_MAX_MISSES]))
+        self.assertFalse(results[-1].tracked)
+
+    def test_dim_screen_digits_still_read(self):
+        # 휴대폰 밝기를 낮춘 화면처럼 사진 밝기를 60%로 줄여도 숫자를 읽는다
+        from signal_head import SignalHeadReader
+        img = cv2.imdecode(np.frombuffer(head_jpeg('green', 12), np.uint8), cv2.IMREAD_COLOR)
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV).astype(np.float32)
+        hsv[..., 2] *= 0.6
+        dim = cv2.cvtColor(np.clip(hsv, 0, 255).astype(np.uint8), cv2.COLOR_HSV2BGR)
+        self.assertEqual(SignalHeadReader(self.feed.cfg).read(dim).digits_frame, 12)
+
+    def test_blank_digit_box_reads_nothing(self):
+        from signal_head import SignalHeadReader
+        img = cv2.imdecode(np.frombuffer(head_jpeg('red'), np.uint8), cv2.IMREAD_COLOR)
+        res = SignalHeadReader(self.feed.cfg).read(img)
+        self.assertIsNotNone(res.digit_box)
+        self.assertIsNone(res.digits_frame)
 
     def test_digits_shorter_than_api_veto_walk(self):
         # API는 12초라 하는데 신호등 숫자는 6 → 카메라 잔여 4.x초 → 대기

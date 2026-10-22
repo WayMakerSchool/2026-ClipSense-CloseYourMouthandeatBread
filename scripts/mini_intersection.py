@@ -25,12 +25,13 @@ STATUSES = {
     "clearance": "protected-clearance",
 }
 
-# Lengths are vmin; center_x is viewport %, lamp centers are housing fractions.
+# Lengths are vmin; lamp centers are housing fractions. 몸체+간격+숫자 상자를 한 묶음으로
+# 화면 가운데에 둔다. 세로 휴대폰에서 숫자 상자가 화면 끝(여백 2.5%)에 붙으면 카메라 사진에서
+# 휴대폰 검은 테두리와 한 덩어리가 되어 숫자 상자를 못 찾았다(2026-10-22 실사진).
 # Shared by the HTML and the camera regression renderer.
 LAYOUT = {
     "background": "#808080",
     "housing_color": "#101010",
-    "center_x": 42,
     "housing_width": 35,
     "housing_height": 70,
     "corner_radius": 1,
@@ -58,7 +59,7 @@ PAGE = """<!doctype html>
 :root { color-scheme: dark; __LAYOUT_CSS__ }
 * { box-sizing: border-box; }
 body { margin:0; background:__BACKGROUND__; color:#fff; font-family:system-ui,sans-serif; }
-#housing { position:fixed; left:__CENTER_X__%; top:50%; transform:translate(-50%,-50%);
+#housing { position:fixed; left:calc(50% - (var(--countdown-gap) + var(--countdown-width)) / 2); top:50%; transform:translate(-50%,-50%);
  width:var(--housing-width); height:var(--housing-height);
  border-radius:var(--corner-radius); background:__HOUSING_COLOR__; }
 .lamp { position:absolute; left:50%; transform:translate(-50%,-50%);
@@ -66,7 +67,7 @@ body { margin:0; background:__BACKGROUND__; color:#fff; font-family:system-ui,sa
 #top-lamp { top:__TOP_CENTER__%; }
 #bottom-lamp { top:__BOTTOM_CENTER__%; }
 #count { position:fixed;
- left:calc(__CENTER_X__% + var(--housing-width) / 2 + var(--countdown-gap));
+ left:calc(50% - (var(--countdown-gap) + var(--countdown-width)) / 2 + var(--housing-width) / 2 + var(--countdown-gap));
  top:calc(50% + var(--housing-height) * __BOTTOM_OFFSET__);
  transform:translateY(-50%); width:var(--countdown-width); height:var(--countdown-height);
  background:__HOUSING_COLOR__; }
@@ -162,7 +163,6 @@ _PAGE_VALUES = {
     "LAYOUT_JSON": json.dumps(LAYOUT),
     "PATTERNS_JSON": json.dumps(DIGIT_SEGMENTS),
     "BACKGROUND": LAYOUT["background"], "HOUSING_COLOR": LAYOUT["housing_color"],
-    "CENTER_X": LAYOUT["center_x"],
     "TOP_CENTER": LAYOUT["top_center"] * 100,
     "BOTTOM_CENTER": LAYOUT["bottom_center"] * 100,
     "BOTTOM_OFFSET": LAYOUT["bottom_center"] - 0.5,
