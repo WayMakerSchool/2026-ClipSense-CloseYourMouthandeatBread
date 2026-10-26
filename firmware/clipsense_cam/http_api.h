@@ -15,7 +15,7 @@
 // 분석이 함께 쓰는 편이 "보인 프레임 = 분석한 프레임"을 지키기 때문이다.
 #pragma once
 
-#include <WebServer.h>
+#include "bounded_web_server.h"
 
 #include "camera_service.h"
 #include "clip_network.h"
@@ -48,7 +48,7 @@ class HttpApi {
   // 토큰이 맞으면 true. 틀리면 401/403을 직접 보내고 false를 돌려준다.
   bool authorize();
 
-  WebServer _server;
+  BoundedWebServer _server;
   CameraService& _camera;
   ClipNetwork& _net;
   const char* _deviceToken;

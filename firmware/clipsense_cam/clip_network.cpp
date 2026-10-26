@@ -1,6 +1,7 @@
 #include "clip_network.h"
 
 #include <ESPmDNS.h>
+#include <esp_wifi.h>
 
 namespace {
 
@@ -35,6 +36,7 @@ void ClipNetwork::begin(const char* ssid, const char* password,
 void ClipNetwork::enterStaConnecting() {
   _state = NetState::StaConnecting;
   _connectStartedMs = millis();
+  _lastRetryMs = _connectStartedMs;
   WiFi.mode(WIFI_STA);
   WiFi.setHostname(_hostname.c_str());
   WiFi.begin(_ssid, _password);
@@ -43,6 +45,10 @@ void ClipNetwork::enterStaConnecting() {
 void ClipNetwork::enterStaActive() {
   _state = NetState::StaActive;
   _retryCount = 0;
+  // begin()의 setSleep(false)는 Wi-Fi 시작 전이라 적용되지 않을 수 있다. 접속된 뒤 절전을
+  // 확실히 끈다 — 휴대폰 핫스팟에서 절전이 켜지면 왕복이 300~700ms로 늘어 사진이 시간 초과된다.
+  WiFi.setSleep(false);
+  esp_wifi_set_ps(WIFI_PS_NONE);
   startMdns();
 }
 
@@ -79,6 +85,13 @@ void ClipNetwork::loop() {
         enterStaActive();
       } else if (now - _connectStartedMs >= CLIP_STA_CONNECT_TIMEOUT_MS) {
         enterApRecovery();
+      } else if (now - _lastRetryMs >= CLIP_STA_RETRY_INTERVAL_MS) {
+        // 자동 재접속을 껐으므로 첫 시도가 실패(휴대폰 핫스팟의 첫 인증 실패
+        // reason 202 등)하면 드라이버가 다시 시도하지 않는다. 제한시간 안에서
+        // 직접 다시 시도한다.
+        _lastRetryMs = now;
+        WiFi.disconnect();
+        WiFi.begin(_ssid, _password);
       }
       break;
 

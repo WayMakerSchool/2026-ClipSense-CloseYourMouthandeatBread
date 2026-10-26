@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ClipSense · 클립 연결 실험</title>
+  <meta name="description" content="클립 사진 수신, 규칙 기반 신호 판독, 실제 음성 안내를 확인하는 로컬 실험 화면">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+<main>
+  <header><a href="/" class="brand">◉ ClipSense <span>LAB</span></a><span class="date">2026.10.19 · 연결 실험</span></header>
+  <section class="intro"><div><p class="eyebrow">클립에서 화면까지</p><h1>같은 사진을 보고,<br>같은 안내를 듣기.</h1><p>사진 수신 → 색·모양 판독 → 대기 안내를 한 화면에서 확인합니다.</p></div>
+    <div class="controls"><button id="start" class="primary">시작 · 음성 켜기</button><button id="stop" disabled>중지</button><p id="speechStatus" role="status">음성 시작 전 · 소리 확인 필요</p></div>
+  </section>
+  <div class="dashboard">
+    <section class="camera card"><div class="cardhead"><h2>01 <span>클립 사진</span></h2><span id="connection" class="pill">시작 전</span></div>
+      <div id="preview"><img id="frame" alt="현재 판독에 사용한 클립 사진" hidden><canvas id="overlay" width="320" height="240" aria-hidden="true" hidden></canvas><div id="empty">아직 받은 사진이 없습니다.<br><span>시작을 누르면 연결을 확인합니다.</span></div><div id="sourceTag" class="sourceflag">촬영 출처 확인 전</div></div>
+      <div class="camerafoot"><strong id="source">촬영 출처 확인 전</strong><span id="sequence">프레임 —</span></div>
+      <dl class="metrics"><div><dt>마지막 사진 수신</dt><dd id="received">—</dd></div><div><dt>사진 나이</dt><dd id="age">—</dd></div><div><dt>클립 왕복</dt><dd id="rtt">—</dd></div></dl>
+    </section>
+    <div class="right">
+      <section class="card reading"><h2>02 <span>기본 판독</span></h2><div id="reading" class="readingvalue">확인 전</div><p id="stable">연속 판독 대기</p><p class="muted" id="detectorReason">기존 HSV 색상·형태 규칙을 사용합니다.</p><div class="rule">규칙 기반 판독 · 학습 AI 모델 아님</div></section>
+      <section class="card guidance"><h2>03 <span>최종 안내</span></h2><span class="waitbadge" id="decision">확인 불가 · 대기</span><p id="guidance" aria-live="polite">신호를 확인할 수 없습니다. 기다리세요.</p><p class="muted" id="apiStatus">신호 API 미연결. 초록 판독만으로 보행을 허용하지 않습니다.</p><div class="speechbuttons"><button id="repeat" disabled>↻ 다시 듣기</button><button id="heard" disabled>방금 안내 들었어요</button></div></section>
+    </div>
+  </div>
+  <section class="card evidence"><div class="cardhead"><div><h2>오늘의 확인 기록</h2><p class="muted">시뮬레이션과 실제 촬영을 구분해 저장합니다. 영상은 소리를 포함해 별도로 촬영하세요.</p></div><button id="export">기록 내려받기</button></div>
+    <div class="recordcontrols"><label>보여준 장면 <select id="scene"><option value="RED">빨강</option><option value="GREEN">초록</option><option value="NONE">신호 없음</option></select></label><label>기기·브라우저 / 촬영 메모 <input id="note" placeholder="예: MacBook · Chrome · 빨간 물체를 ROI 안에 놓음"></label><button id="record" disabled>현재 결과 기록</button></div>
+    <div class="tablewrap"><table><thead><tr><th>시간</th><th>입력·출처</th><th>판독 / 확정</th><th>최종 결정</th><th>실제 음성</th></tr></thead><tbody id="records"><tr id="noRecords"><td colspan="5">아직 기록이 없습니다.</td></tr></tbody></table></div>
+  </section>
+  <details class="card"><summary>접속 조건 · 고정 규칙 · 두 학생의 설명</summary><dl class="conditions"><dt>브라우저 주소</dt><dd id="browserOrigin">—</dd><dt>사진 요청 경로</dt><dd id="path">같은 웹 주소의 /api/frame → 서버 → 클립 /capture</dd><dt>클립 주소</dt><dd id="clipOrigin">—</dd><dt>인증</dt><dd>서버가 X-Clip-Device-Token 사용 · 브라우저에 토큰 전달 안 함</dd><dt>고정 기준</dt><dd id="rules">연결 전</dd><dt>판독 흐름</dt><dd>클립 JPEG → 중앙 ROI → HSV 색 마스크 → 면적·원형도·종횡비 → 연속 프레임 → 판독</dd><dt>안내 흐름</dt><dd>판독 + API + 남은 시간 + 최신성 → 최종 판단. 현재 실제 API·시간이 없어 항상 대기.</dd></dl><p class="muted">다림: 코드와 판단 흐름 설명 · 폴: 장면 정답, 브라우저, 실제 소리 확인. 재실행 후에도 시작 버튼을 누르고 다시 확인합니다.</p></details>
+  <footer>연구·시연용 보조 프로토타입 · 실제 횡단 판단의 유일한 근거로 사용하지 않습니다.</footer>
+</main>
+</body>
+</html>

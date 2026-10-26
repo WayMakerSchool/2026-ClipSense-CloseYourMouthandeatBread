@@ -157,7 +157,20 @@ python3 scripts/probe_signal_api_live.py 1537 ne          # 서울 T-Data 실서
 # 6. Python 단위·골든 테스트
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python scripts/run_unit_tests.py
+
+# 7. 실제 클립 보드 → 로컬 웹 (http://127.0.0.1:5173, 보드 IP는 시리얼 부팅 로그의 ip 행)
+.venv/bin/python scripts/run_web_demo.py                  # 보드 없이 SIM 사진으로 연습
+.venv/bin/python clip_web.py --clip http://<보드IP>        # 중앙 ROI 색 판독, API 없음 → 항상 대기
+
+# 8. 작은 교차로 (모의 T-Data + 신호등 화면이 같은 시계, 도로 시험 아님)
+.venv/bin/python scripts/mini_intersection.py             # 폰에서 http://<Mac IP>:8765 열기
+.venv/bin/python clip_web.py --clip http://<보드IP> --vision head --rotate 180 \
+  --signal-api http://127.0.0.1:8765/tapi/v2xSignalPhaseTimingFusionInformation/1.0
 ```
+
+`--vision head`는 사진 전체에서 신호등 몸체를 찾고, 위 칸 빨강·아래 칸 초록만 신호로 인정하며,
+옆 상자의 7-세그먼트 숫자를 읽어 API보다 짧을 때만 대기에 반영한다. `--rotate 180`은 카메라가
+거꾸로 장착된 경우에 쓴다. 사용법과 판독 기준은 [web_clip/README.md](web_clip/README.md) 참고.
 
 펌웨어 빌드·업로드는 [firmware/README.md](firmware/README.md), 앱의 카메라 조준·접근성·실기기 점검은 [app/README.md](app/README.md), 부스 데모 운영과 문제 해결은 [상세안내.md](상세안내.md)를 참고하세요.
 
