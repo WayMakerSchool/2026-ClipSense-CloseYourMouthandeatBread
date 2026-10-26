@@ -368,6 +368,33 @@ class SignalHeadTests(unittest.TestCase):
         self.assertEqual(snap['visionState'], 'UNKNOWN')
         self.assertNotIn('초록', snap['guidance'])
 
+    def test_red_keeps_guidance_over_two_missed_frames_only(self):
+        # 10/26: 한 장 놓칠 때마다 '확인 불가'가 끼어들던 흔들림. 2장까지만 대기 문구 유지.
+        self.feed.api = None
+        self.assertEqual(self.run_frames(phase='red')['visionState'], 'RED')
+        for _ in range(2):
+            snap = self.run_frames(frames=1, no_head=True)
+            self.assertTrue(snap['visionHeld'])
+            self.assertEqual(snap['guidance'], '빨간불로 판독했습니다. 기다리세요.')
+        snap = self.run_frames(frames=1, no_head=True)
+        self.assertFalse(snap['visionHeld'])
+        self.assertEqual(snap['visionState'], 'UNKNOWN')
+
+    def test_held_green_never_walks(self):
+        # API는 초록·시간 충분이어도, 신호등을 놓친 사진으로는 건너라고 하지 않는다.
+        self.assertEqual(self.run_frames(phase='green', digits=12)['decision'], 'WALK')
+        snap = self.run_frames(frames=1, no_head=True)
+        self.assertNotEqual(snap['decision'], 'WALK')
+        self.assertFalse(snap['visionHeld'])
+        self.assertEqual(snap['visionState'], 'UNKNOWN')
+
+    def test_other_color_breaks_hold_immediately(self):
+        self.feed.api = None
+        self.run_frames(phase='red')
+        snap = self.run_frames(frames=1, phase='green')
+        self.assertFalse(snap['visionHeld'])
+        self.assertEqual(snap['visionState'], 'UNKNOWN')
+
     def test_blink_guidance_explains_why(self):
         self.feed.api = None
         snap = None

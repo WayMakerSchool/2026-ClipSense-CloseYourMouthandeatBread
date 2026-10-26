@@ -44,6 +44,11 @@ STALE_MS = 2000
 # 안내하지 않는다.
 REQUEST_TIMEOUT = 1.5
 POLL_SECONDS = 0.25
+# 확정색(빨강·초록) 중에 신호등을 잠깐 놓친 사진(판독 NONE)은 최대 2장·0.6초까지 직전
+# 대기 안내를 유지한다. 10/22 실사진 80초 동안 한 장 놓칠 때마다 '확인 불가'가 끼어들어
+# 안내가 27번 바뀌었다. 유지 중에는 절대 '건너세요'로 판단하지 않는다(대기 문구만 유지).
+HOLD_MAX_FRAMES = 2
+HOLD_MAX_SECONDS = 0.6
 
 
 def utc_now():
@@ -180,7 +185,7 @@ class ClipFeed:
                  'signal_head.py', 'digits.py']
         hashes = {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
                   for name in files}
-        self.rules = {'version': ('clip-web-rules-2026-10-22-head-v4' if vision == 'head'
+        self.rules = {'version': ('clip-web-rules-2026-10-26-head-v5' if vision == 'head'
                                   else 'clip-web-rules-2026-10-19-v1'), 'sha256': hashes,
                       'config': copy.deepcopy(self.cfg), 'roiFraction': roi_fraction,
                       'vision': vision, 'rotate': rotate,
@@ -206,6 +211,21 @@ class ClipFeed:
         self.detector = ColorDetector(self.cfg)
         self.head = SignalHeadReader(self.cfg)
         self.machine = SignalStateMachine(self.cfg)
+        self.miss_streak, self.last_match_at = 0, None
+
+    def held_state(self, captured, raw):
+        """이 사진이 '확정색을 잠깐 놓친 사진'이면 유지할 확정색, 아니면 None."""
+        state = self.machine.state
+        if state in ('RED', 'GREEN') and raw == state:
+            self.miss_streak, self.last_match_at = 0, captured
+            return None
+        if raw != 'NONE' or state not in ('RED', 'GREEN') or self.last_match_at is None:
+            self.miss_streak = HOLD_MAX_FRAMES + 1  # 다른 색이 보이면 유지하지 않는다
+            return None
+        self.miss_streak += 1
+        if self.miss_streak <= HOLD_MAX_FRAMES and captured - self.last_match_at <= HOLD_MAX_SECONDS:
+            return state
+        return None
 
     def fail(self, code):
         with self.lock:
@@ -284,6 +304,7 @@ class ClipFeed:
                     'red': vars(result.red), 'green': vars(result.green),
                     'brightness': result.brightness}
             self.machine.update(captured, raw, reason)
+            held = self.held_state(captured, raw)
             self.frame = {
                 'jpeg': base64.b64encode(shown).decode('ascii'), 'rotated': self.rotate,
                 'jpegSha256': hashlib.sha256(jpeg).hexdigest(),
@@ -293,7 +314,7 @@ class ClipFeed:
                 'receivedAt': self.last_received_at,
                 'firmware': meta.firmware_version, 'source': provenance(headers),
                 'raw': raw, 'stable': self.machine.state,
-                'detectorReason': reason, 'rttMs': rtt_ms, **vision_info,
+                'detectorReason': reason, 'rttMs': rtt_ms, 'heldFrom': held, **vision_info,
             }
             self.connection, self.error = 'connected', None
 
@@ -370,7 +391,9 @@ class ClipFeed:
             # 사진에 '초록불' 안내가 나감).
             blink_frame_ok = frame and (frame['raw'] == 'GREEN' or (
                 frame['raw'] == 'NONE' and frame.get('detectorReason') in ('lamp_off', 'no_blob')))
-            if frame and frame['raw'] != state and not (state == 'GREEN_BLINK' and blink_frame_ok):
+            held = bool(frame) and frame.get('heldFrom') == state
+            if frame and frame['raw'] != state and not (state == 'GREEN_BLINK' and blink_frame_ok) \
+                    and not held:
                 state = 'UNKNOWN'
             api_reading = self.api.current() if self.api else None
             # 숫자 판독은 '올림한 초'로 표시되고 사진도 age만큼 지났으므로, 보수적으로
@@ -380,11 +403,16 @@ class ClipFeed:
                 vision_remain = max(0.0, round(frame['digits'] - 1 - age / 1000, 1))
             decision = evaluate(api_reading, to_reading(state, remain_sec=vision_remain,
                                                         fresh_ms=age or 0))
+            if held and decision.decision == WALK:
+                # 놓친 사진으로는 건너라고 하지 않는다 — 확인 불가로 되돌린다.
+                state, held = 'UNKNOWN', False
+                decision = evaluate(api_reading, to_reading(state, fresh_ms=age or 0))
             text = guidance_text(decision, state, self.api is not None)
             api_info = (self.api.describe(api_reading) if self.api
                         else {'configured': False})
             return {'serverTime': utc_now(), 'connection': status, 'error': self.error,
-                    'visionState': state, 'visionRemainSec': vision_remain, 'api': api_info,
+                    'visionState': state, 'visionHeld': held,
+                    'visionRemainSec': vision_remain, 'api': api_info,
                     'lastReceivedAt': self.last_received_at, 'ageMs': age,
                     'validForMs': max(0, STALE_MS - age) if frame else 0,
                     'frame': frame, 'decision': decision.decision,
